@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,23 +6,13 @@
 #ifndef FST_MATCHER_FST_H_
 #define FST_MATCHER_FST_H_
 
-#include <cstdint>
-#include <istream>
 #include <memory>
-#include <ostream>
 #include <string>
 
-#include <fst/accumulator.h>
 #include <fst/add-on.h>
-#include <fst/arc.h>
 #include <fst/const-fst.h>
-#include <fst/expanded-fst.h>
-#include <fst/float-weight.h>
-#include <fst/fst.h>
-#include <fst/impl-to-fst.h>
 #include <fst/lookahead-matcher.h>
-#include <fst/matcher.h>
-#include <string_view>
+
 
 namespace fst {
 
@@ -92,8 +68,6 @@ template <
     class F, class M, const char *Name, class Init = NullMatcherFstInit<M>,
     class Data = AddOnPair<typename M::MatcherData, typename M::MatcherData>>
 class MatcherFst : public ImplToExpandedFst<internal::AddOnImpl<F, Data>> {
-  using Base = ImplToExpandedFst<internal::AddOnImpl<F, Data>>;
-
  public:
   using FST = F;
   using Arc = typename FST::Arc;
@@ -102,56 +76,57 @@ class MatcherFst : public ImplToExpandedFst<internal::AddOnImpl<F, Data>> {
   using FstMatcher = M;
   using MatcherData = typename FstMatcher::MatcherData;
 
-  using typename Base::Impl;
+  using Impl = internal::AddOnImpl<FST, Data>;
   using D = Data;
 
   friend class StateIterator<MatcherFst<FST, FstMatcher, Name, Init, Data>>;
   friend class ArcIterator<MatcherFst<FST, FstMatcher, Name, Init, Data>>;
 
-  MatcherFst() : Base(std::make_shared<Impl>(FST(), Name)) {}
+  MatcherFst() : ImplToExpandedFst<Impl>(std::make_shared<Impl>(FST(), Name)) {}
 
-  // Constructs a MatcherFst from an FST, which is the underlying FST type used
-  // by this class. Uses the existing Data if present, and runs Init on it.
-  // Stores fst internally, making a thread-safe copy of it.
   explicit MatcherFst(const FST &fst, std::shared_ptr<Data> data = nullptr)
-      : Base(data ? CreateImpl(fst, Name, data)
-                  : CreateDataAndImpl(fst, Name)) {}
+      : ImplToExpandedFst<Impl>(data ? CreateImpl(fst, Name, data)
+                                     : CreateDataAndImpl(fst, Name)) {}
 
-  // Constructs a MatcherFst from an Fst<Arc>, which is *not* the underlying
-  // FST type used by this class. Uses the existing Data if present, and
-  // runs Init on it. Stores fst internally, converting Fst<Arc> to FST and
-  // therefore making a deep copy.
-  explicit MatcherFst(const Fst<Arc> &fst, std::shared_ptr<Data> data = nullptr)
-      : Base(data ? CreateImpl(fst, Name, data)
-                  : CreateDataAndImpl(fst, Name)) {}
+  explicit MatcherFst(const Fst<Arc> &fst)
+      : ImplToExpandedFst<Impl>(CreateDataAndImpl(fst, Name)) {}
 
   // See Fst<>::Copy() for doc.
-  MatcherFst(const MatcherFst &fst, bool safe = false) : Base(fst, safe) {}
+  MatcherFst(const MatcherFst<FST, FstMatcher, Name, Init, Data> &fst,
+             bool safe = false)
+      : ImplToExpandedFst<Impl>(fst, safe) {}
 
   // Get a copy of this MatcherFst. See Fst<>::Copy() for further doc.
-  MatcherFst *Copy(bool safe = false) const override {
-    return new MatcherFst(*this, safe);
+  MatcherFst<FST, FstMatcher, Name, Init, Data> *Copy(
+      bool safe = false) const override {
+    return new MatcherFst<FST, FstMatcher, Name, Init, Data>(*this, safe);
   }
 
   // Read a MatcherFst from an input stream; return nullptr on error
-  static MatcherFst *Read(std::istream &strm, const FstReadOptions &opts) {
+  static MatcherFst<FST, M, Name, Init, Data> *Read(
+      std::istream &strm, const FstReadOptions &opts) {
     auto *impl = Impl::Read(strm, opts);
-    return impl ? new MatcherFst(std::shared_ptr<Impl>(impl)) : nullptr;
+    return impl ? new MatcherFst<FST, FstMatcher, Name, Init, Data>(
+                      std::shared_ptr<Impl>(impl))
+                : nullptr;
   }
 
   // Read a MatcherFst from a file; return nullptr on error
-  // Empty source reads from standard input
-  static MatcherFst *Read(std::string_view source) {
-    auto *impl = Base::Read(source);
-    return impl ? new MatcherFst(std::shared_ptr<Impl>(impl)) : nullptr;
+  // Empty filename reads from standard input
+  static MatcherFst<FST, FstMatcher, Name, Init, Data> *Read(
+      const string &filename) {
+    auto *impl = ImplToExpandedFst<Impl>::Read(filename);
+    return impl ? new MatcherFst<FST, FstMatcher, Name, Init, Data>(
+                      std::shared_ptr<Impl>(impl))
+                : nullptr;
   }
 
   bool Write(std::ostream &strm, const FstWriteOptions &opts) const override {
     return GetImpl()->Write(strm, opts);
   }
 
-  bool Write(const std::string &source) const override {
-    return Fst<Arc>::WriteFile(source);
+  bool Write(const string &filename) const override {
+    return Fst<Arc>::WriteFile(filename);
   }
 
   void InitStateIterator(StateIteratorData<Arc> *data) const override {
@@ -186,11 +161,10 @@ class MatcherFst : public ImplToExpandedFst<internal::AddOnImpl<F, Data>> {
   }
 
  protected:
-  using Base::GetImpl;
+  using ImplToFst<Impl, ExpandedFst<Arc>>::GetImpl;
 
-  // Makes a thread-safe copy of fst.
   static std::shared_ptr<Impl> CreateDataAndImpl(const FST &fst,
-                                                 std::string_view name) {
+                                                 const string &name) {
     FstMatcher imatcher(fst, MATCH_INPUT);
     FstMatcher omatcher(fst, MATCH_OUTPUT);
     return CreateImpl(fst, name,
@@ -198,16 +172,13 @@ class MatcherFst : public ImplToExpandedFst<internal::AddOnImpl<F, Data>> {
                                              omatcher.GetSharedData()));
   }
 
-  // Makes a deep copy of fst.
   static std::shared_ptr<Impl> CreateDataAndImpl(const Fst<Arc> &fst,
-                                                 std::string_view name) {
+                                                 const string &name) {
     FST result(fst);
     return CreateDataAndImpl(result, name);
   }
 
-  // Makes a thread-safe copy of fst.
-  static std::shared_ptr<Impl> CreateImpl(const FST &fst,
-                                          std::string_view name,
+  static std::shared_ptr<Impl> CreateImpl(const FST &fst, const string &name,
                                           std::shared_ptr<Data> data) {
     auto impl = std::make_shared<Impl>(fst, name);
     impl->SetAddOn(data);
@@ -215,17 +186,8 @@ class MatcherFst : public ImplToExpandedFst<internal::AddOnImpl<F, Data>> {
     return impl;
   }
 
-  // Makes a deep copy of fst.
-  static std::shared_ptr<Impl> CreateImpl(const Fst<Arc> &fst,
-                                          std::string_view name,
-                                          std::shared_ptr<Data> data) {
-    auto impl = std::make_shared<Impl>(fst, name);
-    impl->SetAddOn(data);
-    Init init(&impl);
-    return impl;
-  }
-
-  explicit MatcherFst(std::shared_ptr<Impl> impl) : Base(impl) {}
+  explicit MatcherFst(std::shared_ptr<Impl> impl)
+      : ImplToExpandedFst<Impl>(impl) {}
 
  private:
   MatcherFst &operator=(const MatcherFst &) = delete;
@@ -263,9 +225,9 @@ class Matcher<MatcherFst<F, M, Name, Init>> {
   Matcher(const FST &fst, MatchType match_type)
       : matcher_(fst.InitMatcher(match_type)) {}
 
-  Matcher(const Matcher &matcher) : matcher_(matcher.matcher_->Copy()) {}
+  Matcher(const Matcher<FST> &matcher) : matcher_(matcher.matcher_->Copy()) {}
 
-  Matcher *Copy() const { return new Matcher(*this); }
+  Matcher<FST> *Copy() const { return new Matcher<FST>(*this); }
 
   MatchType Type(bool test) const { return matcher_->Type(test); }
 
@@ -279,11 +241,9 @@ class Matcher<MatcherFst<F, M, Name, Init>> {
 
   void Next() { matcher_->Next(); }
 
-  uint64_t Properties(uint64_t props) const {
-    return matcher_->Properties(props);
-  }
+  uint64 Properties(uint64 props) const { return matcher_->Properties(props); }
 
-  uint32_t Flags() const { return matcher_->Flags(); }
+  uint32 Flags() const { return matcher_->Flags(); }
 
  private:
   std::unique_ptr<M> matcher_;
@@ -302,12 +262,12 @@ class LookAheadMatcher<MatcherFst<F, M, Name, Init>> {
   LookAheadMatcher(const FST &fst, MatchType match_type)
       : matcher_(fst.InitMatcher(match_type)) {}
 
-  LookAheadMatcher(const LookAheadMatcher &matcher, bool safe = false)
+  LookAheadMatcher(const LookAheadMatcher<FST> &matcher, bool safe = false)
       : matcher_(matcher.matcher_->Copy(safe)) {}
 
   // General matcher methods.
-  LookAheadMatcher *Copy(bool safe = false) const {
-    return new LookAheadMatcher(*this, safe);
+  LookAheadMatcher<FST> *Copy(bool safe = false) const {
+    return new LookAheadMatcher<FST>(*this, safe);
   }
 
   MatchType Type(bool test) const { return matcher_->Type(test); }
@@ -324,11 +284,9 @@ class LookAheadMatcher<MatcherFst<F, M, Name, Init>> {
 
   const FST &GetFst() const { return matcher_->GetFst(); }
 
-  uint64_t Properties(uint64_t props) const {
-    return matcher_->Properties(props);
-  }
+  uint64 Properties(uint64 props) const { return matcher_->Properties(props); }
 
-  uint32_t Flags() const { return matcher_->Flags(); }
+  uint32 Flags() const { return matcher_->Flags(); }
 
   bool LookAheadLabel(Label label) const {
     return matcher_->LookAheadLabel(label);
@@ -354,15 +312,15 @@ class LookAheadMatcher<MatcherFst<F, M, Name, Init>> {
 
 // Useful aliases when using StdArc.
 
-inline constexpr char arc_lookahead_fst_type[] = "arc_lookahead";
+extern const char arc_lookahead_fst_type[];
 
 using StdArcLookAheadFst =
     MatcherFst<ConstFst<StdArc>,
                ArcLookAheadMatcher<SortedMatcher<ConstFst<StdArc>>>,
                arc_lookahead_fst_type>;
 
-inline constexpr char ilabel_lookahead_fst_type[] = "ilabel_lookahead";
-inline constexpr char olabel_lookahead_fst_type[] = "olabel_lookahead";
+extern const char ilabel_lookahead_fst_type[];
+extern const char olabel_lookahead_fst_type[];
 
 constexpr auto ilabel_lookahead_flags =
     kInputLookAheadMatcher | kLookAheadWeight | kLookAheadPrefix |

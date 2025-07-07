@@ -1,40 +1,35 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
-#include <fst/script/decode.h>
-
-#include <fst/properties.h>
-#include <fst/script/encodemapper-class.h>
 #include <fst/script/fst-class.h>
+#include <fst/encode.h>
+#include <fst/script/decode.h>
 #include <fst/script/script-impl.h>
 
 namespace fst {
 namespace script {
 
-void Decode(MutableFstClass *fst, const EncodeMapperClass &mapper) {
-  if (!internal::ArcTypesMatch(*fst, mapper, "Decode")) {
+void Decode(MutableFstClass *fst, const string &coder_fname) {
+  DecodeArgs1 args(fst, coder_fname);
+  Apply<Operation<DecodeArgs1>>("Decode", fst->ArcType(), &args);
+}
+
+void Decode(MutableFstClass *fst, const EncodeMapperClass &encoder) {
+  if (!internal::ArcTypesMatch(*fst, encoder, "Decode")) {
     fst->SetProperties(kError, kError);
     return;
   }
-  FstDecodeArgs args{fst, mapper};
-  Apply<Operation<FstDecodeArgs>>("Decode", fst->ArcType(), &args);
+  DecodeArgs2 args(fst, encoder);
+  Apply<Operation<DecodeArgs2>>("Decode", fst->ArcType(), &args);
 }
 
-REGISTER_FST_OPERATION_3ARCS(Decode, FstDecodeArgs);
+REGISTER_FST_OPERATION(Decode, StdArc, DecodeArgs1);
+REGISTER_FST_OPERATION(Decode, LogArc, DecodeArgs1);
+REGISTER_FST_OPERATION(Decode, Log64Arc, DecodeArgs1);
+
+REGISTER_FST_OPERATION(Decode, StdArc, DecodeArgs2);
+REGISTER_FST_OPERATION(Decode, LogArc, DecodeArgs2);
+REGISTER_FST_OPERATION(Decode, Log64Arc, DecodeArgs2);
 
 }  // namespace script
 }  // namespace fst

@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -21,104 +7,90 @@
 // See comments in nlp/fst/script/script-impl.h for how the registration
 // mechanism allows these to work with various arc types.
 
-#include <fst/extensions/pdt/pdtscript.h>
-
-#include <cstddef>
-#include <cstdint>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include <fst/extensions/pdt/compose.h>
+#include <fst/extensions/pdt/expand.h>
+#include <fst/extensions/pdt/pdtscript.h>
 #include <fst/extensions/pdt/replace.h>
-#include <fst/script/fst-class.h>
+#include <fst/extensions/pdt/reverse.h>
+#include <fst/extensions/pdt/shortest-path.h>
 #include <fst/script/script-impl.h>
-#include <fst/script/weight-class.h>
 
 namespace fst {
 namespace script {
 
-void Compose(const FstClass &ifst1, const FstClass &ifst2,
-             const std::vector<std::pair<int64_t, int64_t>> &parens,
-             MutableFstClass *ofst, const PdtComposeOptions &copts,
-             bool left_pdt) {
-  if (!internal::ArcTypesMatch(ifst1, ifst2, "Compose") ||
-      !internal::ArcTypesMatch(ifst1, *ofst, "Compose")) {
+void PdtCompose(const FstClass &ifst1, const FstClass &ifst2,
+                const std::vector<LabelPair> &parens,
+                MutableFstClass *ofst, const PdtComposeOptions &copts,
+                bool left_pdt) {
+  if (!internal::ArcTypesMatch(ifst1, ifst2, "PdtCompose") ||
+      !internal::ArcTypesMatch(ifst1, *ofst, "PdtCompose"))
     return;
-  }
-  PdtComposeArgs args{ifst1, ifst2, parens, ofst, copts, left_pdt};
-  Apply<Operation<PdtComposeArgs>>("Compose", ifst1.ArcType(), &args);
+  PdtComposeArgs args(ifst1, ifst2, parens, ofst, copts, left_pdt);
+  Apply<Operation<PdtComposeArgs>>("PdtCompose", ifst1.ArcType(), &args);
 }
 
-REGISTER_FST_OPERATION_3ARCS(Compose, PdtComposeArgs);
-
-void Expand(const FstClass &ifst,
-            const std::vector<std::pair<int64_t, int64_t>> &parens,
-            MutableFstClass *ofst, const PdtExpandOptions &opts) {
-  PdtExpandArgs args{ifst, parens, ofst, opts};
-  Apply<Operation<PdtExpandArgs>>("Expand", ifst.ArcType(), &args);
+void PdtExpand(const FstClass &ifst,
+               const std::vector<LabelPair> &parens,
+               MutableFstClass *ofst, const PdtExpandOptions &opts) {
+  PdtExpandArgs args(ifst, parens, ofst, opts);
+  Apply<Operation<PdtExpandArgs>>("PdtExpand", ifst.ArcType(), &args);
 }
 
-REGISTER_FST_OPERATION_3ARCS(Expand, PdtExpandArgs);
-
-void Expand(const FstClass &ifst,
-            const std::vector<std::pair<int64_t, int64_t>> &parens,
-            MutableFstClass *ofst, bool connect, bool keep_parentheses,
-            const WeightClass &weight_threshold) {
-  Expand(ifst, parens, ofst,
-         PdtExpandOptions(connect, keep_parentheses, weight_threshold));
+void PdtExpand(const FstClass &ifst,
+               const std::vector<std::pair<int64, int64>> &parens,
+               MutableFstClass *ofst, bool connect, bool keep_parentheses,
+               const WeightClass &weight_threshold) {
+  PdtExpand(ifst, parens, ofst,
+            PdtExpandOptions(connect, keep_parentheses, weight_threshold));
 }
 
-void Replace(const std::vector<std::pair<int64_t, const FstClass *>> &pairs,
-             MutableFstClass *ofst,
-             std::vector<std::pair<int64_t, int64_t>> *parens, int64_t root,
-             PdtParserType parser_type, int64_t start_paren_labels,
-             const std::string &left_paren_prefix,
-             const std::string &right_paren_prefix) {
+void PdtReplace(const std::vector<LabelFstClassPair> &pairs,
+                MutableFstClass *ofst, std::vector<LabelPair> *parens,
+                int64 root, PdtParserType parser_type, int64 start_paren_labels,
+                const string &left_paren_prefix,
+                const string &right_paren_prefix) {
   for (size_t i = 1; i < pairs.size(); ++i) {
     if (!internal::ArcTypesMatch(*pairs[i - 1].second, *pairs[i].second,
-                                 "Replace"))
+                                 "PdtReplace"))
       return;
   }
   if (!internal::ArcTypesMatch(*pairs[0].second, *ofst, "PdtReplace")) return;
-  PdtReplaceArgs args{pairs,
-                      ofst,
-                      parens,
-                      root,
-                      parser_type,
-                      start_paren_labels,
-                      left_paren_prefix,
-                      right_paren_prefix};
-  Apply<Operation<PdtReplaceArgs>>("Replace", ofst->ArcType(), &args);
+  PdtReplaceArgs args(pairs, ofst, parens, root, parser_type,
+                      start_paren_labels, left_paren_prefix,
+                      right_paren_prefix);
+  Apply<Operation<PdtReplaceArgs>>("PdtReplace", ofst->ArcType(), &args);
 }
 
-REGISTER_FST_OPERATION_3ARCS(Replace, PdtReplaceArgs);
-
-void Reverse(const FstClass &ifst,
-             const std::vector<std::pair<int64_t, int64_t>> &parens,
-             MutableFstClass *ofst) {
-  PdtReverseArgs args{ifst, parens, ofst};
-  Apply<Operation<PdtReverseArgs>>("Reverse", ifst.ArcType(), &args);
+void PdtReverse(const FstClass &ifst,
+                const std::vector<LabelPair> &parens,
+                MutableFstClass *ofst) {
+  PdtReverseArgs args(ifst, parens, ofst);
+  Apply<Operation<PdtReverseArgs>>("PdtReverse", ifst.ArcType(), &args);
 }
 
-REGISTER_FST_OPERATION_3ARCS(Reverse, PdtReverseArgs);
-
-void ShortestPath(const FstClass &ifst,
-                  const std::vector<std::pair<int64_t, int64_t>> &parens,
-                  MutableFstClass *ofst, const PdtShortestPathOptions &opts) {
-  PdtShortestPathArgs args{ifst, parens, ofst, opts};
-  Apply<Operation<PdtShortestPathArgs>>("ShortestPath", ifst.ArcType(), &args);
+void PdtShortestPath(const FstClass &ifst,
+                     const std::vector<LabelPair> &parens,
+                     MutableFstClass *ofst,
+                     const PdtShortestPathOptions &opts) {
+  PdtShortestPathArgs args(ifst, parens, ofst, opts);
+  Apply<Operation<PdtShortestPathArgs>>("PdtShortestPath", ifst.ArcType(),
+                                        &args);
 }
 
-REGISTER_FST_OPERATION_3ARCS(ShortestPath, PdtShortestPathArgs);
-
-void Info(const FstClass &ifst,
-          const std::vector<std::pair<int64_t, int64_t>> &parens) {
-  PdtInfoArgs args(ifst, parens);
-  Apply<Operation<PdtInfoArgs>>("Info", ifst.ArcType(), &args);
+void PrintPdtInfo(const FstClass &ifst,
+                  const std::vector<LabelPair> &parens) {
+  PrintPdtInfoArgs args(ifst, parens);
+  Apply<Operation<PrintPdtInfoArgs>>("PrintPdtInfo", ifst.ArcType(), &args);
 }
 
-REGISTER_FST_OPERATION_3ARCS(Info, PdtInfoArgs);
+// Register operations for common arc types.
+
+REGISTER_FST_PDT_OPERATIONS(StdArc);
+REGISTER_FST_PDT_OPERATIONS(LogArc);
+REGISTER_FST_PDT_OPERATIONS(Log64Arc);
 
 }  // namespace script
 }  // namespace fst

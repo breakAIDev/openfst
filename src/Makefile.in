@@ -89,15 +89,13 @@ build_triplet = @build@
 host_triplet = @host@
 subdir = src
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ax_python_devel.m4 \
-	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
-	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
-	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
-CONFIG_HEADER = $(top_builddir)/config.h
+CONFIG_HEADER = $(top_builddir)/config.h \
+	$(top_builddir)/src/include/fst/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_P = $(am__v_P_@AM_V@)
@@ -250,7 +248,8 @@ PYTHON_CPPFLAGS = @PYTHON_CPPFLAGS@
 PYTHON_EXEC_PREFIX = @PYTHON_EXEC_PREFIX@
 PYTHON_EXTRA_LDFLAGS = @PYTHON_EXTRA_LDFLAGS@
 PYTHON_EXTRA_LIBS = @PYTHON_EXTRA_LIBS@
-PYTHON_LIBS = @PYTHON_LIBS@
+PYTHON_LDFLAGS = @PYTHON_LDFLAGS@
+PYTHON_LIB_PREFIX = @PYTHON_LIB_PREFIX@
 PYTHON_PLATFORM = @PYTHON_PLATFORM@
 PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_SITE_PKG = @PYTHON_SITE_PKG@

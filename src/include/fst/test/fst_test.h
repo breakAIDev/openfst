@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,20 +6,13 @@
 #ifndef FST_TEST_FST_TEST_H_
 #define FST_TEST_FST_TEST_H_
 
-#include <cstddef>
-#include <memory>
-#include <string>
-
-#include <fst/log.h>
 #include <fst/equal.h>
-#include <fst/expanded-fst.h>
 #include <fstream>
-#include <fst/fst.h>
 #include <fst/matcher.h>
-#include <fst/mutable-fst.h>
-#include <fst/properties.h>
 #include <fst/vector-fst.h>
 #include <fst/verify.h>
+
+DECLARE_string(tmpdir);
 
 namespace fst {
 
@@ -47,31 +26,33 @@ namespace fst {
 template <class F>
 class FstTester {
  public:
-  using Arc = typename F::Arc;
-  using StateId = typename Arc::StateId;
-  using Weight = typename Arc::Weight;
-  using Label = typename Arc::Label;
+  typedef typename F::Arc Arc;
+  typedef typename Arc::StateId StateId;
+  typedef typename Arc::Weight Weight;
+  typedef typename Arc::Label Label;
 
-  explicit FstTester(size_t num_states = 128, bool weighted = true)
-      : num_states_(num_states), weighted_(weighted) {
+  FstTester() {
     VectorFst<Arc> vfst;
-    InitFst(&vfst, num_states);
-    testfst_ = std::make_unique<F>(vfst);
+    InitFst(&vfst, 128);
+    testfst_ = new F(vfst);
   }
+
+  explicit FstTester(F *testfst) : testfst_(testfst) {}
+
+  ~FstTester() { delete testfst_; }
 
   // This verifies the contents described in InitFst() using
   // methods defined in a generic Fst.
   template <class G>
   void TestBase(const G &fst) const {
+    CHECK(Verify(fst));
+    CHECK_EQ(fst.Start(), 0);
     StateId ns = 0;
     StateIterator<G> siter(fst);
     Matcher<G> matcher(fst, MATCH_INPUT);
     MatchType match_type = matcher.Type(true);
-    bool has_states = false;
     for (; !siter.Done(); siter.Next()) {
-      has_states = true;
     }
-    CHECK_EQ(fst.Start(), has_states ? 0 : kNoStateId);
     for (siter.Reset(); !siter.Done(); siter.Next()) {
       StateId s = siter.Value();
       matcher.SetState(s);
@@ -86,31 +67,25 @@ class FstTester {
         CHECK_EQ(arc.ilabel, na);
         CHECK_EQ(arc.olabel, 0);
         CHECK_EQ(arc.weight, NthWeight(na));
-        if (na == ns + 1) {
-          CHECK_EQ(arc.nextstate, s == num_states_ - 1 ? 0 : s + 1);
-        } else {
-          CHECK_EQ(arc.nextstate, s);
-        }
+        CHECK_EQ(arc.nextstate, s);
         if (match_type == MATCH_INPUT) {
           CHECK(matcher.Find(arc.ilabel));
           CHECK_EQ(matcher.Value().ilabel, arc.ilabel);
         }
       }
-      CHECK_EQ(na, s + 1);
+      CHECK_EQ(na, s);
       CHECK_EQ(na, aiter.Position());
-      CHECK_EQ(fst.NumArcs(s), s + 1);
+      CHECK_EQ(fst.NumArcs(s), s);
       CHECK_EQ(fst.NumInputEpsilons(s), 0);
-      CHECK_EQ(fst.NumOutputEpsilons(s), s + 1);
-      CHECK(!matcher.Find(s + 2));     // out-of-range
-      CHECK(!matcher.Find(kNoLabel));  // no explicit input epsilons
+      CHECK_EQ(fst.NumOutputEpsilons(s), s);
+      CHECK(!matcher.Find(s + 1));     // out-of-range
+      CHECK(!matcher.Find(kNoLabel));  // no explicit epsilons
       CHECK(matcher.Find(0));
       CHECK_EQ(matcher.Value().ilabel, kNoLabel);  // implicit epsilon loop
       ++ns;
     }
-    CHECK_EQ(num_states_, ns);
-    CHECK(Verify(fst));
-    CHECK(fst.Properties(ns > 0 ? kNotAcceptor : kAcceptor, true));
-    CHECK(fst.Properties(ns > 0 ? kOEpsilons : kNoOEpsilons, true));
+    CHECK(fst.Properties(kNotAcceptor, true));
+    CHECK(fst.Properties(kOEpsilons, true));
   }
 
   void TestBase() const { TestBase(*testfst_); }
@@ -118,7 +93,6 @@ class FstTester {
   // This verifies methods specfic to an ExpandedFst.
   template <class G>
   void TestExpanded(const G &fst) const {
-    CHECK_EQ(fst.NumStates(), num_states_);
     StateId ns = 0;
     for (StateIterator<G> siter(fst); !siter.Done(); siter.Next()) {
       ++ns;
@@ -153,13 +127,12 @@ class FstTester {
       }
     }
 
-    {
-      std::unique_ptr<G> cfst1(fst->Copy());
-      cfst1->DeleteStates();
-      CHECK_EQ(cfst1->NumStates(), 0);
-    }
+    G *cfst1 = fst->Copy();
+    cfst1->DeleteStates();
+    CHECK_EQ(cfst1->NumStates(), 0);
+    delete cfst1;
 
-    std::unique_ptr<G> cfst2(fst->Copy());
+    G *cfst2 = fst->Copy();
     for (StateIterator<G> siter(*cfst2); !siter.Done(); siter.Next()) {
       StateId s = siter.Value();
       cfst2->DeleteArcs(s);
@@ -167,31 +140,32 @@ class FstTester {
       CHECK_EQ(cfst2->NumInputEpsilons(s), 0);
       CHECK_EQ(cfst2->NumOutputEpsilons(s), 0);
     }
+    delete cfst2;
   }
 
-  void TestMutable() { TestMutable(testfst_.get()); }
+  void TestMutable() { TestMutable(testfst_); }
 
-  // This verifies operator=
+  // This verifies the copy methods.
   template <class G>
-  void TestAssign(const G &fst) const {
+  void TestAssign(G *fst) const {
     // Assignment from G
     G afst1;
-    afst1 = fst;
-    CHECK(Equal(fst, afst1));
+    afst1 = *fst;
+    CHECK(Equal(*fst, afst1));
 
     // Assignment from Fst
     G afst2;
-    afst2 = static_cast<const Fst<Arc> &>(fst);
-    CHECK(Equal(fst, afst2));
+    afst2 = *static_cast<const Fst<Arc> *>(fst);
+    CHECK(Equal(*fst, afst2));
 
     // Assignment from self
     afst2.operator=(afst2);
-    CHECK(Equal(fst, afst2));
+    CHECK(Equal(*fst, afst2));
   }
 
-  void TestAssign() { TestAssign(*testfst_); }
+  void TestAssign() { TestAssign(testfst_); }
 
-  // This verifies the copy constructor and Copy method.
+  // This verifies the copy methods.
   template <class G>
   void TestCopy(const G &fst) const {
     // Copy from G
@@ -203,8 +177,9 @@ class FstTester {
     TestBase(c2fst);
 
     // Copy from self
-    std::unique_ptr<const G> c3fst(fst.Copy());
+    const G *c3fst = fst.Copy();
     TestBase(*c3fst);
+    delete c3fst;
   }
 
   void TestCopy() const { TestCopy(*testfst_); }
@@ -212,28 +187,31 @@ class FstTester {
   // This verifies the read/write methods.
   template <class G>
   void TestIO(const G &fst) const {
-    const std::string filename = FST_FLAGS_tmpdir + "/test.fst";
-    const std::string aligned = FST_FLAGS_tmpdir + "/aligned.fst";
+    const string filename = FLAGS_tmpdir + "/test.fst";
+    const string aligned = FLAGS_tmpdir + "/aligned.fst";
     {
       // write/read
       CHECK(fst.Write(filename));
-      auto ffst = fst::WrapUnique(G::Read(filename));
+      G *ffst = G::Read(filename);
       CHECK(ffst);
       TestBase(*ffst);
+      delete ffst;
     }
 
     {
       // generic read/cast/test
-      auto gfst = fst::WrapUnique(Fst<Arc>::Read(filename));
+      Fst<Arc> *gfst = Fst<Arc>::Read(filename);
       CHECK(gfst);
-      G *dfst = down_cast<G *>(gfst.get());
+      G *dfst = static_cast<G *>(gfst);
       TestBase(*dfst);
 
       // generic write/read/test
       CHECK(gfst->Write(filename));
-      auto hfst = fst::WrapUnique(Fst<Arc>::Read(filename));
+      Fst<Arc> *hfst = Fst<Arc>::Read(filename);
       CHECK(hfst);
       TestBase(*hfst);
+      delete gfst;
+      delete hfst;
     }
 
     {
@@ -249,9 +227,10 @@ class FstTester {
       FstReadOptions opts;
       opts.mode = FstReadOptions::ReadMode("map");
       opts.source = aligned;
-      auto gfst = fst::WrapUnique(G::Read(istr, opts));
+      G *gfst = G::Read(istr, opts);
       CHECK(gfst);
       TestBase(*gfst);
+      delete gfst;
     }
 
     // check mmaping of unaligned files to make sure it does not fail.
@@ -267,26 +246,29 @@ class FstTester {
       FstReadOptions opts;
       opts.mode = FstReadOptions::ReadMode("map");
       opts.source = aligned;
-      auto gfst = fst::WrapUnique(G::Read(istr, opts));
+      G *gfst = G::Read(istr, opts);
       CHECK(gfst);
       TestBase(*gfst);
+      delete gfst;
     }
 
     // expanded write/read/test
     if (fst.Properties(kExpanded, false)) {
-      auto efst = fst::WrapUnique(ExpandedFst<Arc>::Read(filename));
+      ExpandedFst<Arc> *efst = ExpandedFst<Arc>::Read(filename);
       CHECK(efst);
       TestBase(*efst);
       TestExpanded(*efst);
+      delete efst;
     }
 
     // mutable write/read/test
     if (fst.Properties(kMutable, false)) {
-      auto mfst = fst::WrapUnique(MutableFst<Arc>::Read(filename));
+      MutableFst<Arc> *mfst = MutableFst<Arc>::Read(filename);
       CHECK(mfst);
       TestBase(*mfst);
       TestExpanded(*mfst);
-      TestMutable(mfst.get());
+      TestMutable(mfst);
+      delete mfst;
     }
   }
 
@@ -299,20 +281,15 @@ class FstTester {
   // (II) Start() = 0
   // (III) Final(s) =  NthWeight(s)
   // (IV) For state s:
-  //     (a) NumArcs(s) == s + 1
-  //     (b) For ith arc (i: 1 to s) of s:
+  //     (a) NumArcs(s) == s
+  //     (b) For ith arc of s:
   //         (1) ilabel = i
   //         (2) olabel = 0
   //         (3) weight = NthWeight(i)
   //         (4) nextstate = s
-  //     (c) s+1st arc of s:
-  //         (1) ilabel = s + 1
-  //         (2) olabel = 0
-  //         (3) weight = NthWeight(s + 1)
-  //         (4) nextstate = s + 1 if s < nstates - 1
-  //                         0 if s == nstates - 1
   void InitFst(MutableFst<Arc> *fst, size_t nstates) const {
     fst->DeleteStates();
+    CHECK_GT(nstates, 0);
 
     for (StateId s = 0; s < nstates; ++s) {
       fst->AddState();
@@ -321,25 +298,19 @@ class FstTester {
         Arc arc(i, 0, NthWeight(i), s);
         fst->AddArc(s, arc);
       }
-      fst->AddArc(
-          s, Arc(s + 1, 0, NthWeight(s + 1), s == nstates - 1 ? 0 : s + 1));
     }
 
-    if (nstates > 0) fst->SetStart(0);
+    fst->SetStart(0);
   }
 
-  // Generates One() + ... + One() (n times) if weighted_,
-  // otherwise One().
+  // Generates One() + ... + One() (n times)
   Weight NthWeight(int n) const {
-    if (!weighted_) return Weight::One();
     Weight w = Weight::Zero();
     for (int i = 0; i < n; ++i) w = Plus(w, Weight::One());
     return w;
   }
 
-  size_t num_states_ = 0;
-  bool weighted_ = true;
-  std::unique_ptr<F> testfst_;  // what we're testing
+  F *testfst_;  // what we're testing
 };
 
 }  // namespace fst

@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,7 +6,9 @@
 #ifndef FST_TEST_WEIGHT_TESTER_H_
 #define FST_TEST_WEIGHT_TESTER_H_
 
+#include <iostream>
 #include <sstream>
+
 #include <utility>
 
 #include <fst/log.h>
@@ -31,13 +19,13 @@ namespace fst {
 // This class tests a variety of identities and properties that must
 // hold for the Weight class to be well-defined. It calls function object
 // WEIGHT_GENERATOR to select weights that are used in the tests.
-template <class Weight, class WeightGenerator = WeightGenerate<Weight>>
+template <class Weight, class WeightGenerator>
 class WeightTester {
  public:
-  explicit WeightTester(WeightGenerator generator)
+  WeightTester(WeightGenerator generator)
       : weight_generator_(std::move(generator)) {}
 
-  void Test(int iterations) {
+  void Test(int iterations, bool test_division = true) {
     for (int i = 0; i < iterations; ++i) {
       // Selects the test weights.
       const Weight w1(weight_generator_());
@@ -50,7 +38,7 @@ class WeightTester {
       VLOG(1) << "w3 = " << w3;
 
       TestSemiring(w1, w2, w3);
-      TestDivision(w1, w2);
+      if (test_division) TestDivision(w1, w2);
       TestReverse(w1, w2);
       TestEquality(w1, w2, w3);
       TestIO(w1);
@@ -101,9 +89,6 @@ class WeightTester {
     // Check Power(w, 1) is w
     CHECK(Power(w1, 1) == w1);
 
-    // Check Power(w, 2) is Times(w, w)
-    CHECK(Power(w1, 2) == Times(w1, w1));
-
     // Check Power(w, 3) is Times(w, Times(w, w))
     CHECK(Power(w1, 3) == Times(w1, Times(w1, w1)));
 
@@ -132,7 +117,6 @@ class WeightTester {
   // Tests division operation.
   void TestDivision(Weight w1, Weight w2) {
     Weight p = Times(w1, w2);
-    VLOG(1) << "TestDivision: p = " << p;
 
     if (Weight::Properties() & kLeftSemiring) {
       Weight d = Divide(p, w1, DIVIDE_LEFT);
@@ -149,16 +133,14 @@ class WeightTester {
     }
 
     if (Weight::Properties() & kCommutative) {
-      Weight d1 = Divide(p, w1, DIVIDE_ANY);
-      if (d1.Member()) CHECK(ApproxEqual(p, Times(d1, w1)));
-      Weight d2 = Divide(p, w2, DIVIDE_ANY);
-      if (d2.Member()) CHECK(ApproxEqual(p, Times(w2, d2)));
+      Weight d = Divide(p, w1, DIVIDE_RIGHT);
+      if (d.Member()) CHECK(ApproxEqual(p, Times(d, w1)));
     }
   }
 
   // Tests reverse operation.
   void TestReverse(Weight w1, Weight w2) {
-    using ReverseWeight = typename Weight::ReverseWeight;
+    typedef typename Weight::ReverseWeight ReverseWeight;
 
     ReverseWeight rw1 = w1.Reverse();
     ReverseWeight rw2 = w2.Reverse();
@@ -178,22 +160,6 @@ class WeightTester {
 
     // Checks transitivity.
     if (w1 == w2 && w2 == w3) CHECK(w1 == w3);
-
-    // Checks that two weights are either equal or not equal.
-    CHECK((w1 == w2) ^ (w1 != w2));
-
-    if (w1 == w2) {
-      // Checks that equal weights have identical hashes.
-      CHECK(w1.Hash() == w2.Hash());
-      // Checks that equal weights are also approximately equal.
-      CHECK(ApproxEqual(w1, w2));
-    }
-
-    // Checks that weights which are not even approximately equal are also
-    // strictly unequal.
-    if (!ApproxEqual(w1, w2)) {
-      CHECK(w1 != w2);
-    }
   }
 
   // Tests binary serialization and textual I/O.

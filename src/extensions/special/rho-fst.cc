@@ -1,25 +1,9 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
 #include <fst/extensions/special/rho-fst.h>
 
-#include <fst/flags.h>
-#include <fst/arc.h>
-#include <fst/register.h>
+#include <fst/fst.h>
 
 DEFINE_int64(rho_fst_rho_label, 0,
              "Label of transitions to be interpreted as rho ('rest') "
@@ -30,16 +14,20 @@ DEFINE_string(rho_fst_rewrite_mode, "auto",
 
 namespace fst {
 
-REGISTER_FST(RhoFst, StdArc);
-REGISTER_FST(RhoFst, LogArc);
-REGISTER_FST(RhoFst, Log64Arc);
+const char rho_fst_type[] = "rho";
+const char input_rho_fst_type[] = "input_rho";
+const char output_rho_fst_type[] = "output_rho";
 
-REGISTER_FST(InputRhoFst, StdArc);
-REGISTER_FST(InputRhoFst, LogArc);
-REGISTER_FST(InputRhoFst, Log64Arc);
+static FstRegisterer<StdRhoFst> RhoFst_StdArc_registerer;
+static FstRegisterer<LogRhoFst> RhoFst_LogArc_registerer;
+static FstRegisterer<Log64RhoFst> RhoFst_Log64Arc_registerer;
 
-REGISTER_FST(OutputRhoFst, StdArc);
-REGISTER_FST(OutputRhoFst, LogArc);
-REGISTER_FST(OutputRhoFst, Log64Arc);
+static FstRegisterer<StdInputRhoFst> InputRhoFst_StdArc_registerer;
+static FstRegisterer<LogInputRhoFst> InputRhoFst_LogArc_registerer;
+static FstRegisterer<Log64InputRhoFst> InputRhoFst_Log64Arc_registerer;
+
+static FstRegisterer<StdOutputRhoFst> OutputRhoFst_StdArc_registerer;
+static FstRegisterer<LogOutputRhoFst> OutputRhoFst_LogArc_registerer;
+static FstRegisterer<Log64OutputRhoFst> OutputRhoFst_Log64Arc_registerer;
 
 }  // namespace fst

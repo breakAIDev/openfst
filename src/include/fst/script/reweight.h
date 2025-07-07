@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -21,7 +7,6 @@
 #include <tuple>
 #include <vector>
 
-#include <fst/mutable-fst.h>
 #include <fst/reweight.h>
 #include <fst/script/fst-class.h>
 #include <fst/script/script-impl.h>
@@ -30,12 +15,11 @@
 namespace fst {
 namespace script {
 
-using FstReweightArgs =
-    std::tuple<MutableFstClass *, const std::vector<WeightClass> &,
-               ReweightType>;
+using ReweightArgs = std::tuple<MutableFstClass *,
+                                const std::vector<WeightClass> &, ReweightType>;
 
 template <class Arc>
-void Reweight(FstReweightArgs *args) {
+void Reweight(ReweightArgs *args) {
   using Weight = typename Arc::Weight;
   MutableFst<Arc> *fst = std::get<0>(*args)->GetMutableFst<Arc>();
   const std::vector<WeightClass> &potentials = std::get<1>(*args);

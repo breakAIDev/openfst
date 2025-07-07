@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -24,19 +10,10 @@
 #include <vector>
 
 #include <fst/log.h>
-#include <fst/arc.h>
+
 #include <fst/cache.h>
-#include <fst/compose-filter.h>
 #include <fst/compose.h>
-#include <fst/connect.h>
-#include <fst/float-weight.h>
-#include <fst/fst.h>
-#include <fst/impl-to-fst.h>
-#include <fst/matcher.h>
-#include <fst/mutable-fst.h>
-#include <fst/properties.h>
-#include <fst/state-table.h>
-#include <fst/util.h>
+
 
 namespace fst {
 
@@ -48,7 +25,7 @@ template <class Arc, class M = Matcher<Fst<Arc>>,
               GenericComposeStateTable<Arc, typename Filter::FilterState>>
 struct IntersectFstOptions
     : public ComposeFstOptions<Arc, M, Filter, StateTable> {
-  IntersectFstOptions() = default;
+  IntersectFstOptions() {}
 
   explicit IntersectFstOptions(const CacheOptions &opts, M *matcher1 = nullptr,
                                M *matcher2 = nullptr, Filter *filter = nullptr,
@@ -69,20 +46,18 @@ struct IntersectFstOptions
 // Caveats: same as ComposeFst.
 template <class A>
 class IntersectFst : public ComposeFst<A> {
-  using Base = ComposeFst<A>;
-
  public:
   using Arc = A;
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
 
-  using Base::CreateBase;
-  using Base::CreateBase1;
-  using Base::Properties;
+  using ComposeFst<A>::CreateBase;
+  using ComposeFst<A>::CreateBase1;
+  using ComposeFst<A>::Properties;
 
   IntersectFst(const Fst<Arc> &fst1, const Fst<Arc> &fst2,
                const CacheOptions &opts = CacheOptions())
-      : Base(CreateBase(fst1, fst2, opts)) {
+      : ComposeFst<Arc>(CreateBase(fst1, fst2, opts)) {
     const bool acceptors =
         fst1.Properties(kAcceptor, true) && fst2.Properties(kAcceptor, true);
     if (!acceptors) {
@@ -94,7 +69,7 @@ class IntersectFst : public ComposeFst<A> {
   template <class M, class Filter, class StateTable>
   IntersectFst(const Fst<Arc> &fst1, const Fst<Arc> &fst2,
                const IntersectFstOptions<Arc, M, Filter, StateTable> &opts)
-      : Base(CreateBase1(fst1, fst2, opts)) {
+      : ComposeFst<Arc>(CreateBase1(fst1, fst2, opts)) {
     const bool acceptors =
         fst1.Properties(kAcceptor, true) && fst2.Properties(kAcceptor, true);
     if (!acceptors) {
@@ -104,16 +79,17 @@ class IntersectFst : public ComposeFst<A> {
   }
 
   // See Fst<>::Copy() for doc.
-  IntersectFst(const IntersectFst &fst, bool safe = false) : Base(fst, safe) {}
+  IntersectFst(const IntersectFst<Arc> &fst, bool safe = false)
+      : ComposeFst<Arc>(fst, safe) {}
 
   // Get a copy of this IntersectFst. See Fst<>::Copy() for further doc.
-  IntersectFst *Copy(bool safe = false) const override {
-    return new IntersectFst(*this, safe);
+  IntersectFst<Arc> *Copy(bool safe = false) const override {
+    return new IntersectFst<Arc>(*this, safe);
   }
 
  private:
-  using Base::GetImpl;
-  using Base::GetMutableImpl;
+  using ImplToFst<internal::ComposeFstImplBase<A>>::GetImpl;
+  using ImplToFst<internal::ComposeFstImplBase<A>>::GetMutableImpl;
 };
 
 // Specialization for IntersectFst.

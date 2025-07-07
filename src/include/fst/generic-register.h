@@ -1,34 +1,17 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
 #ifndef FST_GENERIC_REGISTER_H_
 #define FST_GENERIC_REGISTER_H_
 
-#include <functional>
-
 #include <fst/compat.h>
-#include <string_view>
-#include <fst/lock.h>
 #ifndef FST_NO_DYNAMIC_LINKING
 #include <dlfcn.h>
 #endif
 #include <map>
 #include <string>
 
+#include <fst/types.h>
 #include <fst/log.h>
 
 // Generic class representing a globally-stored correspondence between
@@ -37,6 +20,8 @@
 // KeyType must:
 //
 // * be such as can be stored as a key in a std::map<>.
+// * be concatenable with a const char* with the + operator
+//   (or you must subclass and redefine LoadEntryFromSharedObject)
 //
 // EntryType must be default constructible.
 //
@@ -46,23 +31,10 @@
 
 namespace fst {
 
-namespace internal {
-template <class T>
-struct KeyLookupReferenceType {
-  using type = const T &;
-};
-
-template <>
-struct KeyLookupReferenceType<std::string> {
-  using type = std::string_view;
-};
-}  // namespace internal
-
 template <class KeyType, class EntryType, class RegisterType>
 class GenericRegister {
  public:
   using Key = KeyType;
-  using KeyLookupRef = typename internal::KeyLookupReferenceType<KeyType>::type;
   using Entry = EntryType;
 
   static RegisterType *GetRegister() {
@@ -72,10 +44,10 @@ class GenericRegister {
 
   void SetEntry(const KeyType &key, const EntryType &entry) {
     MutexLock l(&register_lock_);
-    register_table_.emplace(key, entry);
+    register_table_.insert(std::make_pair(key, entry));
   }
 
-  EntryType GetEntry(KeyLookupRef key) const {
+  EntryType GetEntry(const KeyType &key) const {
     const auto *entry = LookupEntry(key);
     if (entry) {
       return *entry;
@@ -84,12 +56,12 @@ class GenericRegister {
     }
   }
 
-  virtual ~GenericRegister() = default;
+  virtual ~GenericRegister() {}
 
  protected:
   // Override this if you want to be able to load missing definitions from
   // shared object files.
-  virtual EntryType LoadEntryFromSharedObject(KeyLookupRef key) const {
+  virtual EntryType LoadEntryFromSharedObject(const KeyType &key) const {
 #ifdef FST_NO_DYNAMIC_LINKING
     return EntryType();
 #else
@@ -116,12 +88,12 @@ class GenericRegister {
   }
 
   // Override this to define how to turn a key into an SO filename.
-  virtual std::string ConvertKeyToSoFilename(KeyLookupRef key) const = 0;
+  virtual string ConvertKeyToSoFilename(const KeyType &key) const = 0;
 
-  virtual const EntryType *LookupEntry(KeyLookupRef key) const {
+  virtual const EntryType *LookupEntry(const KeyType &key) const {
     MutexLock l(&register_lock_);
-    if (const auto it = register_table_.find(key);
-        it != register_table_.end()) {
+    const auto it = register_table_.find(key);
+    if (it != register_table_.end()) {
       return &it->second;
     } else {
       return nullptr;
@@ -130,7 +102,7 @@ class GenericRegister {
 
  private:
   mutable Mutex register_lock_;
-  std::map<KeyType, EntryType, std::less<>> register_table_;
+  std::map<KeyType, EntryType> register_table_;
 };
 
 // Generic register-er class capable of creating new register entries in the

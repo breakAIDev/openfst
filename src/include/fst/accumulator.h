@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,31 +6,22 @@
 #ifndef FST_ACCUMULATOR_H_
 #define FST_ACCUMULATOR_H_
 
-#include <sys/types.h>
-
 #include <algorithm>
-#include <cstddef>
 #include <functional>
-#include <memory>
-#include <utility>
+#include <unordered_map>
 #include <vector>
 
 #include <fst/log.h>
+
 #include <fst/arcfilter.h>
 #include <fst/arcsort.h>
 #include <fst/dfs-visit.h>
 #include <fst/expanded-fst.h>
-#include <fst/float-weight.h>
-#include <fst/fst.h>
 #include <fst/replace.h>
-#include <fst/util.h>
-#include <fst/weight.h>
-#include <unordered_map>
 
 namespace fst {
 
 // This class accumulates arc weights using the semiring Plus().
-// Sum(w, aiter, begin, end) has time complexity O(begin - end).
 template <class A>
 class DefaultAccumulator {
  public:
@@ -52,7 +29,7 @@ class DefaultAccumulator {
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
 
-  DefaultAccumulator() = default;
+  DefaultAccumulator() {}
 
   DefaultAccumulator(const DefaultAccumulator &acc, bool safe = false) {}
 
@@ -79,7 +56,6 @@ class DefaultAccumulator {
 
 // This class accumulates arc weights using the log semiring Plus() assuming an
 // arc weight has a WeightConvert specialization to and from log64 weights.
-// Sum(w, aiter, begin, end) has time complexity O(begin - end).
 template <class A>
 class LogAccumulator {
  public:
@@ -87,7 +63,7 @@ class LogAccumulator {
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
 
-  LogAccumulator() = default;
+  LogAccumulator() {}
 
   LogAccumulator(const LogAccumulator &acc, bool safe = false) {}
 
@@ -141,7 +117,7 @@ class FastLogAccumulatorData {
         weight_positions_ptr_(nullptr),
         num_positions_(0) {}
 
-  virtual ~FastLogAccumulatorData() = default;
+  virtual ~FastLogAccumulatorData() {}
 
   // Cummulative weight per state for all states s.t. # of arcs > arc_limit_
   // with arcs in order. The first element per state is Log64Weight::Zero().
@@ -218,9 +194,6 @@ class MutableFastLogAccumulatorData : public FastLogAccumulatorData {
 // arc weight has a WeightConvert specialization to and from log64 weights. The
 // member function Init(fst) has to be called to setup pre-computed weight
 // information.
-// Sum(w, aiter, begin, end) has time complexity O(arc_limit_) or O(arc_period_)
-// depending on whether the state has more than arc_limit_ arcs
-// Space complexity is O(CountStates(fst) + CountArcs(fst) / arc_period_).
 template <class A>
 class FastLogAccumulator {
  public:
@@ -247,7 +220,7 @@ class FastLogAccumulator {
         state_weights_(nullptr),
         error_(false) {}
 
-  FastLogAccumulator(const FastLogAccumulator &acc, bool safe = false)
+  FastLogAccumulator(const FastLogAccumulator<Arc> &acc, bool safe = false)
       : to_log_weight_(),
         to_weight_(),
         arc_limit_(acc.arc_limit_),
@@ -427,7 +400,8 @@ class CacheLogAccumulatorData {
   bool CacheDisabled() const { return cache_gc_ && cache_limit_ == 0; }
 
   std::vector<double> *GetWeights(StateId s) {
-    if (auto it = cache_.find(s); it != cache_.end()) {
+    auto it = cache_.find(s);
+    if (it != cache_.end()) {
       it->second.recent = true;
       return it->second.weights.get();
     } else {
@@ -435,10 +409,10 @@ class CacheLogAccumulatorData {
     }
   }
 
-  void AddWeights(StateId s, std::unique_ptr<std::vector<double>> weights) {
+  void AddWeights(StateId s, std::vector<double> *weights) {
     if (cache_gc_ && cache_size_ >= cache_limit_) GC(false);
+    cache_.insert(std::make_pair(s, CacheState(weights, true)));
     if (cache_gc_) cache_size_ += weights->capacity() * sizeof(double);
-    cache_.emplace(s, CacheState(std::move(weights), true));
   }
 
  private:
@@ -447,8 +421,8 @@ class CacheLogAccumulatorData {
     std::unique_ptr<std::vector<double>> weights;  // Accumulated weights.
     bool recent;  // Has this state been accessed since last GC?
 
-    CacheState(std::unique_ptr<std::vector<double>> weights, bool recent)
-        : weights(std::move(weights)), recent(recent) {}
+    CacheState(std::vector<double> *weights, bool recent)
+        : weights(weights), recent(recent) {}
   };
 
   // Garbage collect: Deletes from cache states that have not been accessed
@@ -483,7 +457,7 @@ class CacheLogAccumulatorData {
 // WeightConvert specialization to and from log64 weights. It is similar to the
 // FastLogAccumator. However here, the accumulated weights are pre-computed and
 // stored only for the states that are visited. The member function Init(fst)
-// has to be called to setup this accumulator. Space complexity is O(gc_limit).
+// has to be called to setup this accumulator.
 template <class Arc>
 class CacheLogAccumulator {
  public:
@@ -497,7 +471,7 @@ class CacheLogAccumulator {
         s_(kNoStateId),
         error_(false) {}
 
-  CacheLogAccumulator(const CacheLogAccumulator &acc, bool safe = false)
+  CacheLogAccumulator(const CacheLogAccumulator<Arc> &acc, bool safe = false)
       : arc_limit_(acc.arc_limit_),
         fst_(acc.fst_ ? acc.fst_->Copy() : nullptr),
         data_(safe ? std::make_shared<CacheLogAccumulatorData<Arc>>(*acc.data_)
@@ -530,13 +504,10 @@ class CacheLogAccumulator {
     }
     weights_ = data_->GetWeights(s);
     if ((weights_ == nullptr) && (fst_->NumArcs(s) >= arc_limit_)) {
-      auto weights = std::make_unique<std::vector<double>>();
-      weights->reserve(fst_->NumArcs(s) + 1);
-      weights->push_back(FloatLimits<double>::PosInfinity());
-      // `weights` holds a reference to the weight vector, whose ownership is
-      // transferred to `data_`.
-      weights_ = weights.get();
-      data_->AddWeights(s, std::move(weights));
+      weights_ = new std::vector<double>;
+      weights_->reserve(fst_->NumArcs(s) + 1);
+      weights_->push_back(FloatLimits<double>::PosInfinity());
+      data_->AddWeights(s, weights_);
     }
   }
 
@@ -582,9 +553,9 @@ class CacheLogAccumulator {
     auto pos = aiter->Position();
     if (weights_) {
       Extend(fst_->NumArcs(s_), aiter);
-      return std::lower_bound(weights_->begin() + pos + 1, weights_->end(), f,
-                              std::greater<double>()) -
-             weights_->begin() - 1;
+      return std::lower_bound(weights_->begin() + pos + 1, weights_->end(),
+                              f, std::greater<double>()) -
+          weights_->begin() - 1;
     } else {
       size_t n = 0;
       auto x = FloatLimits<double>::PosInfinity();
@@ -653,11 +624,11 @@ class CacheLogAccumulator {
     }
   }
 
+
   const WeightConvert<Weight, Log64Weight> to_log_weight_{};
   const WeightConvert<Log64Weight, Weight> to_weight_{};
   ssize_t arc_limit_;                    // Minimum # of arcs to cache a state.
   std::vector<double> *weights_;         // Accumulated weights for cur. state.
-                                         // Pointee owned by `data_`.
   std::unique_ptr<const Fst<Arc>> fst_;  // Input FST.
   std::shared_ptr<CacheLogAccumulatorData<Arc>> data_;  // Cache data.
   StateId s_;                                           // Current state.
@@ -677,8 +648,13 @@ class ReplaceAccumulatorData {
   ReplaceAccumulatorData() : state_table_(nullptr) {}
 
   explicit ReplaceAccumulatorData(
-      std::vector<std::unique_ptr<Accumulator>> &&accumulators)
-      : state_table_(nullptr), accumulators_(std::move(accumulators)) {}
+      const std::vector<Accumulator *> &accumulators)
+      : state_table_(nullptr) {
+    accumulators_.reserve(accumulators.size());
+    for (const auto accumulator : accumulators) {
+      accumulators_.emplace_back(accumulator);
+    }
+  }
 
   void Init(const std::vector<std::pair<Label, const Fst<Arc> *>> &fst_tuples,
             const StateTable *state_table) {
@@ -686,7 +662,7 @@ class ReplaceAccumulatorData {
     accumulators_.resize(fst_tuples.size());
     for (Label i = 0; i < accumulators_.size(); ++i) {
       if (!accumulators_[i]) {
-        accumulators_[i] = std::make_unique<Accumulator>();
+        accumulators_[i].reset(new Accumulator());
         accumulators_[i]->Init(*(fst_tuples[i].second));
       }
       fst_array_.emplace_back(fst_tuples[i].second->Copy());
@@ -705,7 +681,7 @@ class ReplaceAccumulatorData {
   std::vector<std::unique_ptr<const Fst<Arc>>> fst_array_;
 };
 
-// This class accumulates weights in a ReplaceFst. The 'Init' method takes as
+// This class accumulates weights in a ReplaceFst.  The 'Init' method takes as
 // input the argument used to build the ReplaceFst and the ReplaceFst state
 // table. It uses accumulators of type 'Accumulator' in the underlying FSTs.
 template <class Accumulator,
@@ -725,11 +701,10 @@ class ReplaceAccumulator {
               ReplaceAccumulatorData<Accumulator, StateTable>>()),
         error_(false) {}
 
-  explicit ReplaceAccumulator(
-      std::vector<std::unique_ptr<Accumulator>> &&accumulators)
+  explicit ReplaceAccumulator(const std::vector<Accumulator *> &accumulators)
       : init_(false),
         data_(std::make_shared<ReplaceAccumulatorData<Accumulator, StateTable>>(
-            std::move(accumulators))),
+            accumulators)),
         error_(false) {}
 
   ReplaceAccumulator(const ReplaceAccumulator<Accumulator, StateTable> &acc,
@@ -781,8 +756,8 @@ class ReplaceAccumulator {
       offset_ = 0;
       offset_weight_ = Weight::Zero();
     }
-    aiter_ = std::make_unique<ArcIterator<Fst<Arc>>>(*data_->GetFst(fst_id_),
-                                                     tuple.fst_state);
+    aiter_.reset(
+        new ArcIterator<Fst<Arc>>(*data_->GetFst(fst_id_), tuple.fst_state));
   }
 
   Weight Sum(Weight w, Weight v) {
@@ -825,7 +800,7 @@ class SafeReplaceAccumulator {
   using StateTable = T;
   using StateTuple = typename StateTable::StateTuple;
 
-  SafeReplaceAccumulator() = default;
+  SafeReplaceAccumulator() {}
 
   SafeReplaceAccumulator(const SafeReplaceAccumulator &copy, bool safe)
       : SafeReplaceAccumulator(copy) {}
@@ -894,12 +869,12 @@ class SafeReplaceAccumulator {
  private:
   class ArcIteratorPtr {
    public:
-    ArcIteratorPtr() = default;
+    ArcIteratorPtr() {}
 
     ArcIteratorPtr(const ArcIteratorPtr &copy) {}
 
     void Set(const Fst<Arc> &fst, StateId state_id) {
-      ptr_ = std::make_unique<ArcIterator<Fst<Arc>>>(fst, state_id);
+      ptr_.reset(new ArcIterator<Fst<Arc>>(fst, state_id));
     }
 
     ArcIterator<Fst<Arc>> *get() { return ptr_.get(); }

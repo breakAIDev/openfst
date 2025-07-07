@@ -1,5 +1,5 @@
 #! /usr/bin/env sh
-## DO NOT EDIT - This file generated from ./build-aux/ltmain.in
+## DO NOT EDIT - This file generated from ../libtool-2.4.7/build-aux/ltmain.in
 ##               by inline-source v2019-02-19.15
 
 # libtool (GNU libtool) 2.4.7
@@ -31,7 +31,7 @@
 
 PROGRAM=libtool
 PACKAGE=libtool
-VERSION="2.4.7 Debian-2.4.7-7+build1"
+VERSION=2.4.7
 package_revision=2.4.7
 
 
@@ -430,7 +430,7 @@ EXIT_SKIP=77	  # $? = 77 is used to indicate a skipped test to automake.
 # putting '$debug_cmd' at the start of all your functions, you can get
 # bash to show function call trace with:
 #
-#    debug_cmd='echo "${FUNCNAME[0]} $*" >&2' bash your-script-name
+#    debug_cmd='eval echo "${FUNCNAME[0]} $*" >&2' bash your-script-name
 debug_cmd=${debug_cmd-":"}
 exit_cmd=:
 
@@ -572,15 +572,27 @@ func_require_term_colors ()
 # ---------------------
 # Append VALUE onto the existing contents of VAR.
 
+  # We should try to minimise forks, especially on Windows where they are
+  # unreasonably slow, so skip the feature probes when bash or zsh are
+  # being used:
+  if test set = "${BASH_VERSION+set}${ZSH_VERSION+set}"; then
+    : ${_G_HAVE_ARITH_OP="yes"}
+    : ${_G_HAVE_XSI_OPS="yes"}
+    # The += operator was introduced in bash 3.1
+    case $BASH_VERSION in
+      [12].* | 3.0 | 3.0*) ;;
+      *)
+        : ${_G_HAVE_PLUSEQ_OP="yes"}
+        ;;
+    esac
+  fi
+
   # _G_HAVE_PLUSEQ_OP
   # Can be empty, in which case the shell is probed, "yes" if += is
   # useable or anything else if it does not work.
-  if test -z "$_G_HAVE_PLUSEQ_OP" &&  \
-      __PLUSEQ_TEST="a" &&  \
-      __PLUSEQ_TEST+=" b" 2>/dev/null &&  \
-      test "a b" = "$__PLUSEQ_TEST"; then
-    _G_HAVE_PLUSEQ_OP=yes
-  fi
+  test -z "$_G_HAVE_PLUSEQ_OP" \
+    && (eval 'x=a; x+=" b"; test "a b" = "$x"') 2>/dev/null \
+    && _G_HAVE_PLUSEQ_OP=yes
 
 if test yes = "$_G_HAVE_PLUSEQ_OP"
 then
@@ -1694,8 +1706,6 @@ func_run_hooks ()
 {
     $debug_cmd
 
-    _G_rc_run_hooks=false
-
     case " $hookable_fns " in
       *" $1 "*) ;;
       *) func_fatal_error "'$1' does not support hook functions." ;;
@@ -2296,12 +2306,12 @@ include the following information:
        compiler:       $LTCC
        compiler flags: $LTCFLAGS
        linker:         $LD (gnu? $with_gnu_ld)
-       version:        $progname $scriptversion Debian-2.4.7-7+build1
+       version:        $progname (GNU libtool) 2.4.7
        automake:       `($AUTOMAKE --version) 2>/dev/null |$SED 1q`
        autoconf:       `($AUTOCONF --version) 2>/dev/null |$SED 1q`
 
 Report bugs to <bug-libtool@gnu.org>.
-GNU libtool home page: <http://www.gnu.org/s/libtool/>.
+GNU libtool home page: <https://www.gnu.org/software/libtool/>.
 General help using GNU software: <http://www.gnu.org/gethelp/>."
     exit 0
 }
@@ -2500,8 +2510,6 @@ libtool_options_prep ()
 
     _G_rc_lt_options_prep=:
 
-    _G_rc_lt_options_prep=:
-
     # Shorthand for --mode=foo, only valid as the first argument
     case $1 in
     clean|clea|cle|cl)
@@ -2660,10 +2668,10 @@ libtool_validate_options ()
     # preserve --debug
     test : = "$debug_cmd" || func_append preserve_args " --debug"
 
-    case $host in
+    case $host_os in
       # Solaris2 added to fix http://debbugs.gnu.org/cgi/bugreport.cgi?bug=16452
       # see also: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=59788
-      *cygwin* | *mingw* | *pw32* | *cegcc* | *solaris2* | *os2*)
+      cygwin* | mingw* | pw32* | cegcc* | solaris2* | os2*)
         # don't eliminate duplications in $postdeps and $predeps
         opt_duplicate_compiler_generated_deps=:
         ;;
@@ -4522,9 +4530,15 @@ func_mode_install ()
 	dir=$func_dirname_result
 	func_append dir "$objdir"
 
-	if test -n "$relink_command"; then
+	if test "$fast_install" = no && test -n "$relink_command"; then
+	  # Strip any trailing slash from the destination.
+	  func_stripname '' '/' "$libdir"
+	  destlibdir=$func_stripname_result
+	  func_stripname '' '/' "$destdir"
+	  s_destdir=$func_stripname_result
+
 	  # Determine the prefix the user has applied to our future dir.
-	  inst_prefix_dir=`$ECHO "$destdir" | $SED -e "s%$libdir\$%%"`
+	  inst_prefix_dir=`$ECHO "X$s_destdir" | $Xsed -e "s%$destlibdir\$%%"`
 
 	  # Don't allow the user to place us outside of our expected
 	  # location b/c this prevents finding dependent libraries that
@@ -4554,7 +4568,7 @@ func_mode_install ()
 	  shift
 
 	  srcname=$realname
-	  test -n "$relink_command" && srcname=${realname}T
+	  test "$fast_install" = no && test -n "$relink_command" && srcname="$realname"T
 
 	  # Install the shared library and build the symlinks.
 	  func_show_eval "$install_shared_prog $dir/$srcname $destdir/$realname" \
@@ -7549,13 +7563,14 @@ func_mode_link ()
       # -stdlib=*            select c++ std lib with clang
       # -fsanitize=*         Clang/GCC memory and address sanitizer
       # -fuse-ld=*           Linker select flags for GCC
-      # -static-*            direct GCC to link specific libraries statically
-      # -fcilkplus           Cilk Plus language extension features for C/C++
+      # -f{file|debug|macro|profile}-prefix-map* needed for lto linking
+      # -rtlib=*             select c runtime lib with clang
+      # --unwindlib=*        select unwinder library with clang
       # -Wa,*                Pass flags directly to the assembler
       -64|-mips[0-9]|-r[0-9][0-9]*|-xarch=*|-xtarget=*|+DA*|+DD*|-q*|-m*| \
       -t[45]*|-txscale*|-p|-pg|--coverage|-fprofile-*|-F*|@*|-tp=*|--sysroot=*| \
-      -O*|-g*|-flto*|-fwhopr*|-fuse-linker-plugin|-fstack-protector*|-stdlib=*| \
-      -specs=*|-fsanitize=*|-fuse-ld=*|-static-*|-fcilkplus|-Wa,*)
+      -O*|-g*|-flto*|-fwhopr*|-fuse-linker-plugin|-fstack-protector*|-stdlib=*|-rtlib=*|--unwindlib=*| \
+      -specs=*|-fsanitize=*|-fuse-ld=*|-ffile-prefix-map=*|-fdebug-prefix-map=*|-fmacro-prefix-map=*|-fprofile-prefix-map=*|-Wa,*)
         func_quote_arg pretty "$arg"
 	arg=$func_quote_arg_result
         func_append compile_command " $arg"
@@ -7848,10 +7863,7 @@ func_mode_link ()
 	case $pass in
 	dlopen) libs=$dlfiles ;;
 	dlpreopen) libs=$dlprefiles ;;
-	link)
-	  libs="$deplibs %DEPLIBS%"
-	  test "X$link_all_deplibs" != Xno && libs="$libs $dependency_libs"
-	  ;;
+	link) libs="$deplibs %DEPLIBS% $dependency_libs" ;;
 	esac
       fi
       if test lib,dlpreopen = "$linkmode,$pass"; then
@@ -8170,19 +8182,19 @@ func_mode_link ()
 	    # It is a libtool convenience library, so add in its objects.
 	    func_append convenience " $ladir/$objdir/$old_library"
 	    func_append old_convenience " $ladir/$objdir/$old_library"
-	    tmp_libs=
-	    for deplib in $dependency_libs; do
-	      deplibs="$deplib $deplibs"
-	      if $opt_preserve_dup_deps; then
-		case "$tmp_libs " in
-		*" $deplib "*) func_append specialdeplibs " $deplib" ;;
-		esac
-	      fi
-	      func_append tmp_libs " $deplib"
-	    done
 	  elif test prog != "$linkmode" && test lib != "$linkmode"; then
 	    func_fatal_error "'$lib' is not a convenience library"
 	  fi
+	  tmp_libs=
+	  for deplib in $dependency_libs; do
+	    deplibs="$deplib $deplibs"
+	    if $opt_preserve_dup_deps; then
+	      case "$tmp_libs " in
+	      *" $deplib "*) func_append specialdeplibs " $deplib" ;;
+	      esac
+	    fi
+	    func_append tmp_libs " $deplib"
+	  done
 	  continue
 	fi # $pass = conv
 
@@ -8378,15 +8390,15 @@ func_mode_link ()
 	    # Hardcode the library path.
 	    # Skip directories that are in the system default run-time
 	    # search path.
-	    case " $sys_lib_dlsearch_path " in
-	    *" $absdir "*) ;;
-	    *)
-	      case "$compile_rpath " in
-	      *" $absdir "*) ;;
-	      *) func_append compile_rpath " $absdir" ;;
-	      esac
-	      ;;
-	    esac
+	    #case " $sys_lib_dlsearch_path " in
+	    #*" $absdir "*) ;;
+	    #*)
+	    #  case "$compile_rpath " in
+	    #  *" $absdir "*) ;;
+	    #  *) func_append compile_rpath " $absdir" ;;
+	    #  esac
+	    #  ;;
+	    #esac
 	    case " $sys_lib_dlsearch_path " in
 	    *" $libdir "*) ;;
 	    *)
@@ -8414,8 +8426,8 @@ func_mode_link ()
 	fi
 	if test -n "$library_names" &&
 	   { test no = "$use_static_libs" || test -z "$old_library"; }; then
-	  case $host in
-	  *cygwin* | *mingw* | *cegcc* | *os2*)
+	  case $host_os in
+	  cygwin* | mingw* | cegcc* | os2*)
 	      # No point in relinking DLLs because paths are not encoded
 	      func_append notinst_deplibs " $lib"
 	      need_relink=no
@@ -8452,15 +8464,15 @@ func_mode_link ()
 	    # Hardcode the library path.
 	    # Skip directories that are in the system default run-time
 	    # search path.
-	    case " $sys_lib_dlsearch_path " in
-	    *" $absdir "*) ;;
-	    *)
-	      case "$compile_rpath " in
-	      *" $absdir "*) ;;
-	      *) func_append compile_rpath " $absdir" ;;
-	      esac
-	      ;;
-	    esac
+	    #case " $sys_lib_dlsearch_path " in
+	    #*" $absdir "*) ;;
+	    #*)
+	    #  case "$compile_rpath " in
+	    #  *" $absdir "*) ;;
+	    #  *) func_append compile_rpath " $absdir" ;;
+	    #  esac
+	    #  ;;
+	    #esac
 	    case " $sys_lib_dlsearch_path " in
 	    *" $libdir "*) ;;
 	    *)
@@ -8484,8 +8496,8 @@ func_mode_link ()
 	      soname=$dlname
 	    elif test -n "$soname_spec"; then
 	      # bleh windows
-	      case $host in
-	      *cygwin* | mingw* | *cegcc* | *os2*)
+	      case $host_os in
+	      cygwin* | mingw* | cegcc* | os2*)
 	        func_arith $current - $age
 		major=$func_arith_result
 		versuffix=-$major
@@ -8644,7 +8656,7 @@ func_mode_link ()
 	      fi
 	    else
 	      # We cannot seem to hardcode it, guess we'll fake it.
-	      add_dir=-L$libdir
+	      add_dir="-L$lt_sysroot$libdir"
 	      # Try looking first in the location we're being installed to.
 	      if test -n "$inst_prefix_dir"; then
 		case $libdir in
@@ -8806,8 +8818,8 @@ func_mode_link ()
 		  eval libdir=`$SED -n -e 's/^libdir=\(.*\)$/\1/p' $deplib`
 		  test -z "$libdir" && \
 		    func_fatal_error "'$deplib' is not a valid libtool archive"
-		  test "$absdir" != "$libdir" && \
-		    func_warning "'$deplib' seems to be moved"
+		  #test "$absdir" != "$libdir" && \
+		  #  func_warning "'$deplib' seems to be moved"
 
 		  path=-L$absdir
 		fi
@@ -9105,9 +9117,6 @@ func_mode_link ()
 	    age=$number_minor
 	    revision=$number_minor
 	    lt_irix_increment=no
-	    ;;
-	  *)
-	    func_fatal_configuration "$modename: unknown library version type '$version_type'"
 	    ;;
 	  esac
 	  ;;
@@ -9826,9 +9835,11 @@ EOF
 	  test relink = "$opt_mode" || rpath=$compile_rpath$rpath
 	  for libdir in $rpath; do
 	    if test -n "$hardcode_libdir_flag_spec"; then
+	      func_replace_sysroot "$libdir"
+	      libdir=$func_replace_sysroot_result
+	      func_stripname '=' '' "$libdir"
+	      libdir=$func_stripname_result
 	      if test -n "$hardcode_libdir_separator"; then
-		func_replace_sysroot "$libdir"
-		libdir=$func_replace_sysroot_result
 		if test -z "$hardcode_libdirs"; then
 		  hardcode_libdirs=$libdir
 		else
@@ -9842,8 +9853,16 @@ EOF
 		  esac
 		fi
 	      else
-		eval flag=\"$hardcode_libdir_flag_spec\"
-		func_append dep_rpath " $flag"
+                # We only want to hardcode in an rpath if it isn't in the
+                # default dlsearch path.
+                func_normal_abspath "$libdir"
+                libdir_norm=$func_normal_abspath_result
+	        case " $sys_lib_dlsearch_path " in
+	        *" $libdir_norm "*) ;;
+	        *) eval flag=\"$hardcode_libdir_flag_spec\"
+                   func_append dep_rpath " $flag"
+                   ;;
+	        esac
 	      fi
 	    elif test -n "$runpath_var"; then
 	      case "$perm_rpath " in
@@ -10558,6 +10577,10 @@ EOF
       hardcode_libdirs=
       for libdir in $compile_rpath $finalize_rpath; do
 	if test -n "$hardcode_libdir_flag_spec"; then
+	  func_replace_sysroot "$libdir"
+	  libdir=$func_replace_sysroot_result
+	  func_stripname '=' '' "$libdir"
+	  libdir=$func_stripname_result
 	  if test -n "$hardcode_libdir_separator"; then
 	    if test -z "$hardcode_libdirs"; then
 	      hardcode_libdirs=$libdir
@@ -10572,8 +10595,16 @@ EOF
 	      esac
 	    fi
 	  else
-	    eval flag=\"$hardcode_libdir_flag_spec\"
-	    func_append rpath " $flag"
+            # We only want to hardcode in an rpath if it isn't in the
+            # default dlsearch path.
+            func_normal_abspath "$libdir"
+            libdir_norm=$func_normal_abspath_result
+	    case " $sys_lib_dlsearch_path " in
+	    *" $libdir_norm "*) ;;
+	    *) eval flag=\"$hardcode_libdir_flag_spec\"
+               rpath+=" $flag"
+               ;;
+	    esac
 	  fi
 	elif test -n "$runpath_var"; then
 	  case "$perm_rpath " in
@@ -10609,6 +10640,10 @@ EOF
       hardcode_libdirs=
       for libdir in $finalize_rpath; do
 	if test -n "$hardcode_libdir_flag_spec"; then
+	  func_replace_sysroot "$libdir"
+	  libdir=$func_replace_sysroot_result
+	  func_stripname '=' '' "$libdir"
+	  libdir=$func_stripname_result
 	  if test -n "$hardcode_libdir_separator"; then
 	    if test -z "$hardcode_libdirs"; then
 	      hardcode_libdirs=$libdir
@@ -10623,8 +10658,14 @@ EOF
 	      esac
 	    fi
 	  else
-	    eval flag=\"$hardcode_libdir_flag_spec\"
-	    func_append rpath " $flag"
+            # We only want to hardcode in an rpath if it isn't in the
+            # default dlsearch path.
+	    case " $sys_lib_dlsearch_path " in
+	    *" $libdir "*) ;;
+	    *) eval flag=\"$hardcode_libdir_flag_spec\"
+               func_append rpath " $flag"
+               ;;
+	    esac    
 	  fi
 	elif test -n "$runpath_var"; then
 	  case "$finalize_perm_rpath " in

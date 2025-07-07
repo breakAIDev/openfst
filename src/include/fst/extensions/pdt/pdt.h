@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,19 +6,14 @@
 #ifndef FST_EXTENSIONS_PDT_PDT_H_
 #define FST_EXTENSIONS_PDT_PDT_H_
 
-#include <sys/types.h>
-
-#include <cstddef>
 #include <map>
 #include <set>
-#include <utility>
-#include <vector>
+#include <unordered_map>
 
 #include <fst/compat.h>
 #include <fst/log.h>
 #include <fst/fst.h>
 #include <fst/state-table.h>
-#include <unordered_map>
 
 namespace fst {
 
@@ -143,7 +124,7 @@ struct PdtStateTuple {
   StateId state_id;
   StackId stack_id;
 
-  explicit PdtStateTuple(StateId state_id = kNoStateId, StackId stack_id = -1)
+  PdtStateTuple(StateId state_id = kNoStateId, StackId stack_id = -1)
       : state_id(state_id), stack_id(stack_id) {}
 };
 
@@ -171,7 +152,7 @@ class PdtStateTable : public CompactHashStateTable<
                           PdtStateTuple<StateId, StackId>,
                           PdtStateHash<PdtStateTuple<StateId, StackId>>> {
  public:
-  PdtStateTable() = default;
+  PdtStateTable() {}
 
   PdtStateTable(const PdtStateTable &other) {}
 

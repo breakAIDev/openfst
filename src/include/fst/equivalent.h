@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -21,24 +7,17 @@
 #define FST_EQUIVALENT_H_
 
 #include <algorithm>
-#include <cstdint>
-#include <queue>
+#include <deque>
+#include <unordered_map>
 #include <utility>
 #include <vector>
-
 #include <fst/log.h>
-#include <fst/arc-map.h>
+
 #include <fst/encode.h>
-#include <fst/fst.h>
-#include <fst/properties.h>
 #include <fst/push.h>
-#include <fst/reweight.h>
-#include <fst/symbol-table.h>
 #include <fst/union-find.h>
-#include <fst/util.h>
 #include <fst/vector-fst.h>
-#include <fst/weight.h>
-#include <unordered_map>
+
 
 namespace fst {
 namespace internal {
@@ -70,7 +49,7 @@ struct EquivalenceUtil {
   // Maps state ID to the representative of the corresponding
   // equivalence class. The parameter 'which_fst' takes the values 1
   // and 2, identifying the input FST.
-  static MappedId MapState(StateId s, int32_t which_fst) {
+  static MappedId MapState(StateId s, int32 which_fst) {
     return (kNoStateId == s) ? kDeadState
                              : (static_cast<MappedId>(s) << 1) + which_fst;
   }
@@ -99,6 +78,14 @@ struct EquivalenceUtil {
   }
 };
 
+template <class Arc>
+constexpr
+    typename EquivalenceUtil<Arc>::MappedId EquivalenceUtil<Arc>::kDeadState;
+
+template <class Arc>
+constexpr
+    typename EquivalenceUtil<Arc>::MappedId EquivalenceUtil<Arc>::kInvalidId;
+
 }  // namespace internal
 
 // Equivalence checking algorithm: determines if the two FSTs fst1 and fst2
@@ -113,7 +100,7 @@ struct EquivalenceUtil {
 // of both acceptors. A disjoint tree forest (the union-find algorithm) is used
 // to represent the sets of states. The algorithm returns false if one of the
 // constructed sets contains both final and non-final states. Returns an
-// optional error value (useful when FST_FLAGS_error_fatal = false).
+// optional error value (useful when FLAGS_error_fatal = false).
 //
 // Complexity:
 //
@@ -180,14 +167,14 @@ bool Equivalent(const Fst<Arc> &fst1, const Fst<Arc> &fst2,
       std::unordered_map<typename Arc::Label, std::pair<MappedId, MappedId>>;
   Label2StatePairMap arc_pairs;
   // Pairs of MappedId's to be processed, organized in a queue.
-  std::queue<std::pair<MappedId, MappedId>> q;
+  std::deque<std::pair<MappedId, MappedId>> q;
   bool ret = true;
   // Returns early if the start states differ w.r.t. finality.
   if (Util::IsFinal(fst1, s1) != Util::IsFinal(fst2, s2)) ret = false;
   // Main loop: explores the two acceptors in a breadth-first manner, updating
   // the equivalence relation on the statesets. Loop invariant: each block of
   // the states contains either final states only or non-final states only.
-  for (q.emplace(s1, s2); ret && !q.empty(); q.pop()) {
+  for (q.push_back(std::make_pair(s1, s2)); ret && !q.empty(); q.pop_front()) {
     s1 = q.front().first;
     s2 = q.front().second;
     // Representatives of the equivalence classes of s1/s2.
@@ -227,7 +214,7 @@ bool Equivalent(const Fst<Arc> &fst1, const Fst<Arc> &fst2,
           ret = false;
           break;
         }
-        q.push(pair);
+        q.push_back(pair);
       }
     }
   }

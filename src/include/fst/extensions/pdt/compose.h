@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,32 +6,18 @@
 #ifndef FST_EXTENSIONS_PDT_COMPOSE_H_
 #define FST_EXTENSIONS_PDT_COMPOSE_H_
 
-#include <sys/types.h>
-
-#include <cstdint>
 #include <list>
-#include <utility>
-#include <vector>
 
-#include <fst/log.h>
 #include <fst/extensions/pdt/pdt.h>
-#include <fst/compose-filter.h>
 #include <fst/compose.h>
-#include <fst/connect.h>
-#include <fst/filter-state.h>
-#include <fst/fst.h>
-#include <fst/matcher.h>
-#include <fst/mutable-fst.h>
-#include <fst/properties.h>
-#include <fst/util.h>
 
 namespace fst {
 
 // Returns paren arcs for Find(kNoLabel).
-inline constexpr uint32_t kParenList = 0x00000001;
+constexpr uint32 kParenList = 0x00000001;
 
 // Returns a kNolabel loop for Find(paren).
-inline constexpr uint32_t kParenLoop = 0x00000002;
+constexpr uint32 kParenLoop = 0x00000002;
 
 // This class is a matcher that treats parens as multi-epsilon labels.
 // It is most efficient if the parens are in a range non-overlapping with
@@ -62,7 +34,7 @@ class ParenMatcher {
 
   // This makes a copy of the FST.
   ParenMatcher(const FST &fst, MatchType match_type,
-               uint32_t flags = (kParenLoop | kParenList))
+               uint32 flags = (kParenLoop | kParenList))
       : matcher_(fst, match_type), match_type_(match_type), flags_(flags) {
     if (match_type == MATCH_INPUT) {
       loop_.ilabel = kNoLabel;
@@ -77,7 +49,7 @@ class ParenMatcher {
 
   // This doesn't copy the FST.
   ParenMatcher(const FST *fst, MatchType match_type,
-               uint32_t flags = (kParenLoop | kParenList))
+               uint32 flags = (kParenLoop | kParenList))
       : matcher_(fst, match_type), match_type_(match_type), flags_(flags) {
     if (match_type == MATCH_INPUT) {
       loop_.ilabel = kNoLabel;
@@ -126,11 +98,9 @@ class ParenMatcher {
 
   const FST &GetFst() const { return matcher_.GetFst(); }
 
-  uint64_t Properties(uint64_t props) const {
-    return matcher_.Properties(props);
-  }
+  uint64 Properties(uint64 props) const { return matcher_.Properties(props); }
 
-  uint32_t Flags() const { return matcher_.Flags(); }
+  uint32 Flags() const { return matcher_.Flags(); }
 
   void AddOpenParen(Label label) {
     if (label == 0) {
@@ -181,7 +151,7 @@ class ParenMatcher {
 
   M matcher_;
   MatchType match_type_;  // Type of match to perform.
-  uint32_t flags_;
+  uint32 flags_;
   // Open paren label set.
   CompactSet<Label, kNoLabel> open_parens_;
   // Close paren label set.
@@ -384,7 +354,7 @@ class ParenFilter {
 
   Matcher2 *GetMatcher2() { return filter_.GetMatcher2(); }
 
-  uint64_t Properties(uint64_t iprops) const {
+  uint64 Properties(uint64 iprops) const {
     return filter_.Properties(iprops) & kILabelInvariantProperties &
            kOLabelInvariantProperties;
   }
@@ -463,18 +433,18 @@ class PdtComposeFstOptions<Arc, false>
   }
 };
 
-enum class PdtComposeFilter : uint8_t {
-  PAREN,         // Bar-Hillel construction; keeps parentheses.
-  EXPAND,        // Bar-Hillel + expansion; removes parentheses.
-  EXPAND_PAREN,  // Bar-Hillel + expansion; keeps parentheses.
+enum PdtComposeFilter {
+  PAREN_FILTER,         // Bar-Hillel construction; keeps parentheses.
+  EXPAND_FILTER,        // Bar-Hillel + expansion; removes parentheses.
+  EXPAND_PAREN_FILTER,  // Bar-Hillel + expansion; keeps parentheses.
 };
 
 struct PdtComposeOptions {
   bool connect;                  // Connect output?
   PdtComposeFilter filter_type;  // Pre-defined filter to use.
 
-  explicit PdtComposeOptions(bool connect = true, PdtComposeFilter filter_type =
-                                                      PdtComposeFilter::PAREN)
+  explicit PdtComposeOptions(bool connect = true,
+                             PdtComposeFilter filter_type = PAREN_FILTER)
       : connect(connect), filter_type(filter_type) {}
 };
 
@@ -484,14 +454,13 @@ struct PdtComposeOptions {
 // interpreted as a PDT, the parens must balance on a path (see PdtExpand()).
 // The open-close parenthesis label pairs are passed using the parens argument.
 template <class Arc>
-void Compose(
-    const Fst<Arc> &ifst1,
-    const std::vector<std::pair<typename Arc::Label, typename Arc::Label>>
-        &parens,
-    const Fst<Arc> &ifst2, MutableFst<Arc> *ofst,
-    const PdtComposeOptions &opts = PdtComposeOptions()) {
-  bool expand = opts.filter_type != PdtComposeFilter::PAREN;
-  bool keep_parens = opts.filter_type != PdtComposeFilter::EXPAND;
+void Compose(const Fst<Arc> &ifst1,
+             const std::vector<
+                 std::pair<typename Arc::Label, typename Arc::Label>> &parens,
+             const Fst<Arc> &ifst2, MutableFst<Arc> *ofst,
+             const PdtComposeOptions &opts = PdtComposeOptions()) {
+  bool expand = opts.filter_type != PAREN_FILTER;
+  bool keep_parens = opts.filter_type != EXPAND_FILTER;
   PdtComposeFstOptions<Arc, true> copts(ifst1, parens, ifst2, expand,
                                         keep_parens);
   copts.gc_limit = 0;
@@ -505,14 +474,13 @@ void Compose(
 // interpreted as a PDT, the parens must balance on a path (see ExpandFst()).
 // The open-close parenthesis label pairs are passed using the parens argument.
 template <class Arc>
-void Compose(
-    const Fst<Arc> &ifst1, const Fst<Arc> &ifst2,
-    const std::vector<std::pair<typename Arc::Label, typename Arc::Label>>
-        &parens,
-    MutableFst<Arc> *ofst,
-    const PdtComposeOptions &opts = PdtComposeOptions()) {
-  bool expand = opts.filter_type != PdtComposeFilter::PAREN;
-  bool keep_parens = opts.filter_type != PdtComposeFilter::EXPAND;
+void Compose(const Fst<Arc> &ifst1, const Fst<Arc> &ifst2,
+             const std::vector<
+                 std::pair<typename Arc::Label, typename Arc::Label>> &parens,
+             MutableFst<Arc> *ofst,
+             const PdtComposeOptions &opts = PdtComposeOptions()) {
+  bool expand = opts.filter_type != PAREN_FILTER;
+  bool keep_parens = opts.filter_type != EXPAND_FILTER;
   PdtComposeFstOptions<Arc, false> copts(ifst1, ifst2, parens, expand,
                                          keep_parens);
   copts.gc_limit = 0;

@@ -1,36 +1,15 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
 #ifndef FST_EXTENSIONS_SPECIAL_PHI_FST_H_
 #define FST_EXTENSIONS_SPECIAL_PHI_FST_H_
 
-#include <cstdint>
-#include <istream>
 #include <memory>
-#include <ostream>
 #include <string>
 
-#include <fst/log.h>
-#include <fst/arc.h>
 #include <fst/const-fst.h>
-#include <fst/fst.h>
 #include <fst/matcher-fst.h>
 #include <fst/matcher.h>
-#include <fst/util.h>
 
 DECLARE_int64(phi_fst_phi_label);
 DECLARE_bool(phi_fst_phi_loop);
@@ -42,11 +21,10 @@ namespace internal {
 template <class Label>
 class PhiFstMatcherData {
  public:
-  explicit PhiFstMatcherData(
-      Label phi_label = FST_FLAGS_phi_fst_phi_label,
-      bool phi_loop = FST_FLAGS_phi_fst_phi_loop,
-      MatcherRewriteMode rewrite_mode =
-          RewriteMode(FST_FLAGS_phi_fst_rewrite_mode))
+  PhiFstMatcherData(
+      Label phi_label = FLAGS_phi_fst_phi_label,
+      bool phi_loop = FLAGS_phi_fst_phi_loop,
+      MatcherRewriteMode rewrite_mode = RewriteMode(FLAGS_phi_fst_rewrite_mode))
       : phi_label_(phi_label),
         phi_loop_(phi_loop),
         rewrite_mode_(rewrite_mode) {}
@@ -58,19 +36,19 @@ class PhiFstMatcherData {
 
   static PhiFstMatcherData<Label> *Read(std::istream &istrm,
                                         const FstReadOptions &read) {
-    auto data = std::make_unique<PhiFstMatcherData<Label>>();
+    auto *data = new PhiFstMatcherData<Label>();
     ReadType(istrm, &data->phi_label_);
     ReadType(istrm, &data->phi_loop_);
-    int32_t rewrite_mode;
+    int32 rewrite_mode;
     ReadType(istrm, &rewrite_mode);
     data->rewrite_mode_ = static_cast<MatcherRewriteMode>(rewrite_mode);
-    return data.release();
+    return data;
   }
 
   bool Write(std::ostream &ostrm, const FstWriteOptions &opts) const {
     WriteType(ostrm, phi_label_);
     WriteType(ostrm, phi_loop_);
-    WriteType(ostrm, static_cast<int32_t>(rewrite_mode_));
+    WriteType(ostrm, static_cast<int32>(rewrite_mode_));
     return !ostrm ? false : true;
   }
 
@@ -81,7 +59,7 @@ class PhiFstMatcherData {
   MatcherRewriteMode RewriteMode() const { return rewrite_mode_; }
 
  private:
-  static MatcherRewriteMode RewriteMode(const std::string &mode) {
+  static MatcherRewriteMode RewriteMode(const string &mode) {
     if (mode == "auto") return MATCHER_REWRITE_AUTO;
     if (mode == "always") return MATCHER_REWRITE_ALWAYS;
     if (mode == "never") return MATCHER_REWRITE_NEVER;
@@ -97,12 +75,10 @@ class PhiFstMatcherData {
 
 }  // namespace internal
 
-inline constexpr uint8_t kPhiFstMatchInput =
-    0x01;  // Input matcher is PhiMatcher.
-inline constexpr uint8_t kPhiFstMatchOutput =
-    0x02;  // Output matcher is PhiMatcher.
+constexpr uint8 kPhiFstMatchInput = 0x01;   // Input matcher is PhiMatcher.
+constexpr uint8 kPhiFstMatchOutput = 0x02;  // Output matcher is PhiMatcher.
 
-template <class M, uint8_t flags = kPhiFstMatchInput | kPhiFstMatchOutput>
+template <class M, uint8 flags = kPhiFstMatchInput | kPhiFstMatchOutput>
 class PhiFstMatcher : public PhiMatcher<M> {
  public:
   using FST = typename M::FST;
@@ -112,11 +88,10 @@ class PhiFstMatcher : public PhiMatcher<M> {
   using Weight = typename Arc::Weight;
   using MatcherData = internal::PhiFstMatcherData<Label>;
 
-  static constexpr uint8_t kFlags = flags;
+  enum : uint8 { kFlags = flags };
 
   // This makes a copy of the FST.
-  PhiFstMatcher(
-      const FST &fst, MatchType match_type,
+  PhiFstMatcher(const FST &fst, MatchType match_type,
       std::shared_ptr<MatcherData> data = std::make_shared<MatcherData>())
       : PhiMatcher<M>(fst, match_type,
                       PhiLabel(match_type, data ? data->PhiLabel()
@@ -126,8 +101,7 @@ class PhiFstMatcher : public PhiMatcher<M> {
         data_(data) {}
 
   // This doesn't copy the FST.
-  PhiFstMatcher(
-      const FST *fst, MatchType match_type,
+  PhiFstMatcher(const FST *fst, MatchType match_type,
       std::shared_ptr<MatcherData> data = std::make_shared<MatcherData>())
       : PhiMatcher<M>(fst, match_type,
                       PhiLabel(match_type, data ? data->PhiLabel()
@@ -158,32 +132,51 @@ class PhiFstMatcher : public PhiMatcher<M> {
   std::shared_ptr<MatcherData> data_;
 };
 
-inline constexpr char phi_fst_type[] = "phi";
-inline constexpr char input_phi_fst_type[] = "input_phi";
-inline constexpr char output_phi_fst_type[] = "output_phi";
+extern const char phi_fst_type[];
+extern const char input_phi_fst_type[];
+extern const char output_phi_fst_type[];
 
-template <class Arc>
-using PhiFst =
-    MatcherFst<ConstFst<Arc>, PhiFstMatcher<SortedMatcher<ConstFst<Arc>>>,
+using StdPhiFst =
+    MatcherFst<ConstFst<StdArc>, PhiFstMatcher<SortedMatcher<ConstFst<StdArc>>>,
                phi_fst_type>;
 
-using StdPhiFst = PhiFst<StdArc>;
+using LogPhiFst =
+    MatcherFst<ConstFst<LogArc>, PhiFstMatcher<SortedMatcher<ConstFst<LogArc>>>,
+               phi_fst_type>;
 
-template <class Arc>
-using InputPhiFst =
-    MatcherFst<ConstFst<Arc>,
-               PhiFstMatcher<SortedMatcher<ConstFst<Arc>>, kPhiFstMatchInput>,
+using Log64PhiFst = MatcherFst<ConstFst<Log64Arc>,
+                               PhiFstMatcher<SortedMatcher<ConstFst<Log64Arc>>>,
+                               input_phi_fst_type>;
+
+using StdInputPhiFst =
+    MatcherFst<ConstFst<StdArc>, PhiFstMatcher<SortedMatcher<ConstFst<StdArc>>,
+                                               kPhiFstMatchInput>,
                input_phi_fst_type>;
 
-using StdInputPhiFst = InputPhiFst<StdArc>;
+using LogInputPhiFst =
+    MatcherFst<ConstFst<LogArc>, PhiFstMatcher<SortedMatcher<ConstFst<LogArc>>,
+                                               kPhiFstMatchInput>,
+               input_phi_fst_type>;
 
-template <class Arc>
-using OutputPhiFst =
-    MatcherFst<ConstFst<Arc>,
-               PhiFstMatcher<SortedMatcher<ConstFst<Arc>>, kPhiFstMatchOutput>,
+using Log64InputPhiFst = MatcherFst<
+    ConstFst<Log64Arc>,
+    PhiFstMatcher<SortedMatcher<ConstFst<Log64Arc>>, kPhiFstMatchInput>,
+    input_phi_fst_type>;
+
+using StdOutputPhiFst =
+    MatcherFst<ConstFst<StdArc>, PhiFstMatcher<SortedMatcher<ConstFst<StdArc>>,
+                                               kPhiFstMatchOutput>,
                output_phi_fst_type>;
 
-using StdOutputPhiFst = OutputPhiFst<StdArc>;
+using LogOutputPhiFst =
+    MatcherFst<ConstFst<LogArc>, PhiFstMatcher<SortedMatcher<ConstFst<LogArc>>,
+                                               kPhiFstMatchOutput>,
+               output_phi_fst_type>;
+
+using Log64OutputPhiFst = MatcherFst<
+    ConstFst<Log64Arc>,
+    PhiFstMatcher<SortedMatcher<ConstFst<Log64Arc>>, kPhiFstMatchOutput>,
+    output_phi_fst_type>;
 
 }  // namespace fst
 

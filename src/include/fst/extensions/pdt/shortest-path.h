@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,30 +6,16 @@
 #ifndef FST_EXTENSIONS_PDT_SHORTEST_PATH_H_
 #define FST_EXTENSIONS_PDT_SHORTEST_PATH_H_
 
-#include <sys/types.h>
-
-#include <cstddef>
-#include <cstdint>
-#include <memory>
 #include <stack>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <fst/log.h>
+
 #include <fst/extensions/pdt/paren.h>
 #include <fst/extensions/pdt/pdt.h>
-#include <fst/arc.h>
-#include <fst/expanded-fst.h>
-#include <fst/float-weight.h>
-#include <fst/fst.h>
-#include <fst/mutable-fst.h>
-#include <fst/properties.h>
-#include <fst/queue.h>
 #include <fst/shortest-path.h>
-#include <fst/util.h>
-#include <fst/weight.h>
-#include <unordered_map>
 
 namespace fst {
 
@@ -52,8 +24,7 @@ struct PdtShortestPathOptions {
   bool keep_parentheses;
   bool path_gc;
 
-  explicit PdtShortestPathOptions(bool keep_parentheses = false,
-                                  bool path_gc = true)
+  PdtShortestPathOptions(bool keep_parentheses = false, bool path_gc = true)
       : keep_parentheses(keep_parentheses), path_gc(path_gc) {}
 };
 
@@ -61,9 +32,9 @@ namespace internal {
 
 // Flags for shortest path data.
 
-inline constexpr uint8_t kPdtInited = 0x01;
-inline constexpr uint8_t kPdtFinal = 0x02;
-inline constexpr uint8_t kPdtMarked = 0x04;
+constexpr uint8 kPdtInited = 0x01;
+constexpr uint8 kPdtFinal = 0x02;
+constexpr uint8 kPdtMarked = 0x04;
 
 // Stores shortest path tree info Distance(), Parent(), and ArcParent()
 // information keyed on two types:
@@ -91,7 +62,7 @@ class PdtShortestPathData {
     StateId state;  // PDT state.
     StateId start;  // PDT paren "start" state.
 
-    explicit SearchState(StateId s = kNoStateId, StateId t = kNoStateId)
+    SearchState(StateId s = kNoStateId, StateId t = kNoStateId)
         : state(s), start(t) {}
 
     bool operator==(const SearchState &other) const {
@@ -103,9 +74,8 @@ class PdtShortestPathData {
   // Specifies paren ID, source and dest "start" states of a paren. These are
   // the "start" states of the respective sub-graphs.
   struct ParenSpec {
-    explicit ParenSpec(Label paren_id = kNoLabel,
-                       StateId src_start = kNoStateId,
-                       StateId dest_start = kNoStateId)
+    ParenSpec(Label paren_id = kNoLabel, StateId src_start = kNoStateId,
+              StateId dest_start = kNoStateId)
         : paren_id(paren_id), src_start(src_start), dest_start(dest_start) {}
 
     Label paren_id;
@@ -129,11 +99,11 @@ class PdtShortestPathData {
 
     Weight distance;     // Distance to this state from PDT "start" state.
     SearchState parent;  // Parent state in shortest path tree.
-    int16_t paren_id;    // If parent arc has paren, paren ID (or kNoLabel).
-    uint8_t flags;       // First byte reserved for PdtShortestPathData use.
+    int16 paren_id;      // If parent arc has paren, paren ID (or kNoLabel).
+    uint8 flags;         // First byte reserved for PdtShortestPathData use.
   };
 
-  explicit PdtShortestPathData(bool gc)
+  PdtShortestPathData(bool gc)
       : gc_(gc), nstates_(0), ngc_(0), finished_(false) {}
 
   ~PdtShortestPathData() {
@@ -168,7 +138,7 @@ class PdtShortestPathData {
 
   Label ParenId(SearchState s) const { return GetSearchData(s)->paren_id; }
 
-  uint8_t Flags(SearchState s) const { return GetSearchData(s)->flags; }
+  uint8 Flags(SearchState s) const { return GetSearchData(s)->flags; }
 
   void SetDistance(SearchState s, Weight weight) {
     GetSearchData(s)->distance = std::move(weight);
@@ -186,12 +156,12 @@ class PdtShortestPathData {
 
   void SetParenId(SearchState s, Label p) {
     if (p >= 32768) {
-      FSTERROR() << "PdtShortestPathData: Paren ID does not fit in an int16_t";
+      FSTERROR() << "PdtShortestPathData: Paren ID does not fit in an int16";
     }
     GetSearchData(s)->paren_id = p;
   }
 
-  void SetFlags(SearchState s, uint8_t f, uint8_t mask) {
+  void SetFlags(SearchState s, uint8 f, uint8 mask) {
     auto *data = GetSearchData(s);
     data->flags &= ~mask;
     data->flags |= f & mask;
@@ -446,9 +416,9 @@ class PdtShortestPath {
   ssize_t nenqueued_;
   bool error_;
 
-  static constexpr uint8_t kEnqueued = 0x10;
-  static constexpr uint8_t kExpanded = 0x20;
-  static constexpr uint8_t kFinished = 0x40;
+  static constexpr uint8 kEnqueued = 0x10;
+  static constexpr uint8 kExpanded = 0x20;
+  static constexpr uint8 kFinished = 0x40;
 
   static const Arc kNoArc;
 };

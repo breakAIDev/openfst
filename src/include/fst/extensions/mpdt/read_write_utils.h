@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -21,27 +7,24 @@
 #ifndef FST_EXTENSIONS_MPDT_READ_WRITE_UTILS_H_
 #define FST_EXTENSIONS_MPDT_READ_WRITE_UTILS_H_
 
-#include <cstddef>
-#include <istream>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <fst/log.h>
 #include <fstream>
-#include <fst/util.h>
-#include <string_view>
+#include <fst/test-properties.h>
 
 namespace fst {
 
 // Returns true on success.
 template <typename Label>
-bool ReadLabelTriples(const std::string &source,
+bool ReadLabelTriples(const string &filename,
                       std::vector<std::pair<Label, Label>> *pairs,
-                      std::vector<Label> *assignments) {
-  std::ifstream fstrm(source);
+                      std::vector<Label> *assignments,
+                      bool allow_negative = false) {
+  std::ifstream fstrm(filename);
   if (!fstrm) {
-    LOG(ERROR) << "ReadIntTriples: Can't open file: " << source;
+    LOG(ERROR) << "ReadIntTriples: Can't open file: " << filename;
     return false;
   }
   static constexpr auto kLineLen = 8096;
@@ -50,22 +33,22 @@ bool ReadLabelTriples(const std::string &source,
   pairs->clear();
   while (fstrm.getline(line, kLineLen)) {
     ++nline;
-    std::vector<std::string_view> col =
-        StrSplit(line, ByAnyChar("\n\t "), SkipEmpty());
+    std::vector<char *> col;
+    SplitString(line, "\n\t ", &col, true);
     // Empty line or comment?
-    if (col.empty() || col[0].empty() || col[0][0] == '#') continue;
+    if (col.empty() || col[0][0] == '\0' || col[0][0] == '#') continue;
     if (col.size() != 3) {
       LOG(ERROR) << "ReadLabelTriples: Bad number of columns, "
-                 << "file = " << source << ", line = " << nline;
+                 << "file = " << filename << ", line = " << nline;
       return false;
     }
     bool err;
-    const Label i1 = StrToInt64(col[0], source, nline, &err);
+    const Label i1 = StrToInt64(col[0], filename, nline, allow_negative, &err);
     if (err) return false;
-    const Label i2 = StrToInt64(col[1], source, nline, &err);
+    const Label i2 = StrToInt64(col[1], filename, nline, allow_negative, &err);
     if (err) return false;
     using Level = Label;
-    const Level i3 = StrToInt64(col[2], source, nline, &err);
+    const Level i3 = StrToInt64(col[2], filename, nline, allow_negative, &err);
     if (err) return false;
     pairs->push_back(std::make_pair(i1, i2));
     assignments->push_back(i3);
@@ -75,16 +58,16 @@ bool ReadLabelTriples(const std::string &source,
 
 // Returns true on success.
 template <typename Label>
-bool WriteLabelTriples(const std::string &source,
+bool WriteLabelTriples(const string &filename,
                        const std::vector<std::pair<Label, Label>> &pairs,
                        const std::vector<Label> &assignments) {
   if (pairs.size() != assignments.size()) {
     LOG(ERROR) << "WriteLabelTriples: Pairs and assignments of different sizes";
     return false;
   }
-  std::ofstream fstrm(source);
+  std::ofstream fstrm(filename);
   if (!fstrm) {
-    LOG(ERROR) << "WriteLabelTriples: Can't open file: " << source;
+    LOG(ERROR) << "WriteLabelTriples: Can't open file: " << filename;
     return false;
   }
   for (size_t n = 0; n < pairs.size(); ++n)
@@ -92,7 +75,7 @@ bool WriteLabelTriples(const std::string &source,
           << "\n";
   if (!fstrm) {
     LOG(ERROR) << "WriteLabelTriples: Write failed: "
-               << (source.empty() ? "standard output" : source);
+               << (filename.empty() ? "standard output" : filename);
     return false;
   }
   return true;

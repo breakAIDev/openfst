@@ -1,56 +1,27 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
 // NgramFst implements a n-gram language model based upon the LOUDS data
-// structure. Please refer to "Unary Data Structures for Language Models"
+// structure.  Please refer to "Unary Data Structures for Language Models"
 // http://research.google.com/pubs/archive/37218.pdf
 
 #ifndef FST_EXTENSIONS_NGRAM_NGRAM_FST_H_
 #define FST_EXTENSIONS_NGRAM_NGRAM_FST_H_
 
-#include <sys/types.h>
-
+#include <stddef.h>
+#include <string.h>
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <ios>
 #include <iostream>
-#include <istream>
-#include <memory>
-#include <ostream>
-#include <queue>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <fst/compat.h>
 #include <fst/log.h>
-#include <fst/extensions/ngram/bitmap-index.h>
-#include <fst/arcsort.h>
-#include <fst/expanded-fst.h>
 #include <fstream>
-#include <fst/fst.h>
+#include <fst/extensions/ngram/bitmap-index.h>
 #include <fst/fstlib.h>
 #include <fst/mapped-file.h>
-#include <fst/matcher.h>
-#include <fst/properties.h>
-#include <fst/util.h>
-#include <fst/vector-fst.h>
 
 namespace fst {
 template <class A>
@@ -117,11 +88,18 @@ class NGramFstImpl : public FstImpl<A> {
     SetProperties(kError, kError);
   }
 
-  static NGramFstImpl<A> *Read(std::istream &strm, const FstReadOptions &opts) {
-    auto impl = std::make_unique<NGramFstImpl<A>>();
+  ~NGramFstImpl() override {
+    if (owned_) {
+      delete[] data_;
+    }
+  }
+
+  static NGramFstImpl<A> *Read(std::istream &strm,  // NOLINT
+                               const FstReadOptions &opts) {
+    NGramFstImpl<A> *impl = new NGramFstImpl();
     FstHeader hdr;
-    if (!impl->ReadHeader(strm, opts, kMinFileVersion, &hdr)) return nullptr;
-    uint64_t num_states, num_futures, num_final;
+    if (!impl->ReadHeader(strm, opts, kMinFileVersion, &hdr)) return 0;
+    uint64 num_states, num_futures, num_final;
     const size_t offset =
         sizeof(num_states) + sizeof(num_futures) + sizeof(num_final);
     // Peek at num_states and num_futures to see how much more needs to be read.
@@ -129,8 +107,8 @@ class NGramFstImpl : public FstImpl<A> {
     strm.read(reinterpret_cast<char *>(&num_futures), sizeof(num_futures));
     strm.read(reinterpret_cast<char *>(&num_final), sizeof(num_final));
     size_t size = Storage(num_states, num_futures, num_final);
-    std::unique_ptr<MappedFile> data_region(MappedFile::Allocate(size));
-    char *data = static_cast<char *>(data_region->mutable_data());
+    MappedFile *data_region = MappedFile::Allocate(size);
+    char *data = reinterpret_cast<char *>(data_region->mutable_data());
     // Copy num_states, num_futures and num_final back into data.
     memcpy(data, reinterpret_cast<char *>(&num_states), sizeof(num_states));
     memcpy(data + sizeof(num_states), reinterpret_cast<char *>(&num_futures),
@@ -138,12 +116,16 @@ class NGramFstImpl : public FstImpl<A> {
     memcpy(data + sizeof(num_states) + sizeof(num_futures),
            reinterpret_cast<char *>(&num_final), sizeof(num_final));
     strm.read(data + offset, size - offset);
-    if (strm.fail()) return nullptr;
-    impl->Init(data, std::move(data_region));
-    return impl.release();
+    if (strm.fail()) {
+      delete impl;
+      return nullptr;
+    }
+    impl->Init(data, false, data_region);
+    return impl;
   }
 
-  bool Write(std::ostream &strm, const FstWriteOptions &opts) const {
+  bool Write(std::ostream &strm,  // NOLINT
+             const FstWriteOptions &opts) const {
     FstHeader hdr;
     hdr.SetStart(Start());
     hdr.SetNumStates(num_states_);
@@ -185,13 +167,13 @@ class NGramFstImpl : public FstImpl<A> {
   StateId NumStates() const { return num_states_; }
 
   void InitStateIterator(StateIteratorData<A> *data) const {
-    data->base = nullptr;
+    data->base = 0;
     data->nstates = num_states_;
   }
 
-  static size_t Storage(uint64_t num_states, uint64_t num_futures,
-                        uint64_t num_final) {
-    uint64_t b64;
+  static size_t Storage(uint64 num_states, uint64 num_futures,
+                        uint64 num_final) {
+    uint64 b64;
     Weight weight;
     Label label;
     size_t offset =
@@ -232,10 +214,8 @@ class NGramFstImpl : public FstImpl<A> {
       inst->context_.clear();
       size_t node = inst->node_;
       while (node != 0) {
-        const size_t rank1 = context_index_.Rank1(node);
-        const size_t rank0 = node - rank1;
-        inst->context_.push_back(context_words_[rank1]);
-        node = context_index_.Select1(rank0 - 1);
+        inst->context_.push_back(context_words_[context_index_.Rank1(node)]);
+        node = context_index_.Select1(context_index_.Rank0(node) - 1);
       }
     }
   }
@@ -246,8 +226,7 @@ class NGramFstImpl : public FstImpl<A> {
     return data_;
   }
 
-  void Init(const char *data,
-            std::unique_ptr<MappedFile> data_region);
+  void Init(const char *data, bool owned, MappedFile *file = nullptr);
 
   const std::vector<Label> &GetContext(StateId s, NGramFstInst<A> *inst) const {
     SetInstFuture(s, inst);
@@ -266,39 +245,36 @@ class NGramFstImpl : public FstImpl<A> {
   StateId Transition(const std::vector<Label> &context, Label future) const;
 
   // Properties always true for this Fst class.
-  static constexpr uint64_t kStaticProperties =
+  static const uint64 kStaticProperties =
       kAcceptor | kIDeterministic | kODeterministic | kEpsilons | kIEpsilons |
       kOEpsilons | kILabelSorted | kOLabelSorted | kWeighted | kCyclic |
       kInitialAcyclic | kNotTopSorted | kAccessible | kCoAccessible |
       kNotString | kExpanded;
   // Current file format version.
-  static constexpr int kFileVersion = 4;
+  static const int kFileVersion = 4;
   // Minimum file format version supported.
-  static constexpr int kMinFileVersion = 4;
+  static const int kMinFileVersion = 4;
 
   std::unique_ptr<MappedFile> data_region_;
-  const char *data_ = nullptr;  // Not owned.
+  const char *data_ = nullptr;
+  bool owned_ = false;  // True if we own data_
   StateId start_ = fst::kNoStateId;
-  uint64_t num_states_ = 0;
-  uint64_t num_futures_ = 0;
-  uint64_t num_final_ = 0;
+  uint64 num_states_ = 0;
+  uint64 num_futures_ = 0;
+  uint64 num_final_ = 0;
   std::pair<size_t, size_t> select_root_;
   const Label *root_children_ = nullptr;
   // borrowed references
-  const uint64_t *context_ = nullptr;
-  const uint64_t *future_ = nullptr;
-  const uint64_t *final_ = nullptr;
+  const uint64 *context_ = nullptr;
+  const uint64 *future_ = nullptr;
+  const uint64 *final_ = nullptr;
   const Label *context_words_ = nullptr;
   const Label *future_words_ = nullptr;
   const Weight *backoff_ = nullptr;
   const Weight *final_probs_ = nullptr;
   const Weight *future_probs_ = nullptr;
-  // Uses all operations.
   BitmapIndex context_index_;
-  // Uses Select0 and Rank1.
   BitmapIndex future_index_;
-  // Uses Get and Rank1. This wastes space if there are no or few final
-  // states, but it's also small. TODO(jrosenstock): Look at EliasFanoArray.
   BitmapIndex final_index_;
 };
 
@@ -314,9 +290,9 @@ inline void NGramFstImpl<A>::GetStates(
   const Label *loc = std::lower_bound(children, children + num_children, *cit);
   if (loc == children + num_children || *loc != *cit) return;
   size_t node = 2 + loc - children;
-  size_t node_rank = context_index_.Rank1(node);
-  states->push_back(node_rank);
+  states->push_back(context_index_.Rank1(node));
   if (context.size() == 1) return;
+  size_t node_rank = context_index_.Rank1(node);
   std::pair<size_t, size_t> zeros =
       node_rank == 0 ? select_root_ : context_index_.Select0s(node_rank);
   size_t first_child = zeros.first + 1;
@@ -332,8 +308,8 @@ inline void NGramFstImpl<A>::GetStates(
       }
       ++cit;
       node = first_child + loc - children;
+      states->push_back(context_index_.Rank1(node));
       node_rank = context_index_.Rank1(node);
-      states->push_back(node_rank);
       zeros =
           node_rank == 0 ? select_root_ : context_index_.Select0s(node_rank);
       first_child = zeros.first + 1;
@@ -348,7 +324,6 @@ inline void NGramFstImpl<A>::GetStates(
 /*****************************************************************************/
 template <class A>
 class NGramFst : public ImplToExpandedFst<internal::NGramFstImpl<A>> {
-  using Base = ImplToExpandedFst<internal::NGramFstImpl<A>>;
   friend class ArcIterator<NGramFst<A>>;
   friend class NGramFstMatcher<A>;
 
@@ -357,24 +332,25 @@ class NGramFst : public ImplToExpandedFst<internal::NGramFstImpl<A>> {
   typedef typename A::StateId StateId;
   typedef typename A::Label Label;
   typedef typename A::Weight Weight;
-  using typename Base::Impl;
+  typedef internal::NGramFstImpl<A> Impl;
 
   explicit NGramFst(const Fst<A> &dst)
-      : Base(std::make_shared<Impl>(dst, nullptr)) {}
+      : ImplToExpandedFst<Impl>(std::make_shared<Impl>(dst, nullptr)) {}
 
   NGramFst(const Fst<A> &fst, std::vector<StateId> *order_out)
-      : Base(std::make_shared<Impl>(fst, order_out)) {}
+      : ImplToExpandedFst<Impl>(std::make_shared<Impl>(fst, order_out)) {}
 
   // Because the NGramFstImpl is a const stateless data structure, there
   // is never a need to do anything beside copy the reference.
-  NGramFst(const NGramFst<A> &fst, bool safe = false) : Base(fst, false) {}
+  NGramFst(const NGramFst<A> &fst, bool safe = false)
+      : ImplToExpandedFst<Impl>(fst, false) {}
 
-  NGramFst() : Base(std::make_shared<Impl>()) {}
+  NGramFst() : ImplToExpandedFst<Impl>(std::make_shared<Impl>()) {}
 
-  // Non-standard constructor to initialize NGramFst directly from data. Caller
-  // maintains ownership of data, which must outlive the NGramFst.
-  explicit NGramFst(const char *data) : Base(std::make_shared<Impl>()) {
-    GetMutableImpl()->Init(data, /*data_region=*/nullptr);
+  // Non-standard constructor to initialize NGramFst directly from data.
+  NGramFst(const char *data, bool owned)
+      : ImplToExpandedFst<Impl>(std::make_shared<Impl>()) {
+    GetMutableImpl()->Init(data, owned, nullptr);
   }
 
   // Get method that gets the data associated with Init().
@@ -406,15 +382,15 @@ class NGramFst : public ImplToExpandedFst<internal::NGramFstImpl<A>> {
     return impl ? new NGramFst<A>(std::shared_ptr<Impl>(impl)) : nullptr;
   }
 
-  static NGramFst<A> *Read(const std::string &source) {
-    if (!source.empty()) {
-      std::ifstream strm(source,
+  static NGramFst<A> *Read(const string &filename) {
+    if (!filename.empty()) {
+      std::ifstream strm(filename,
                               std::ios_base::in | std::ios_base::binary);
       if (!strm.good()) {
-        LOG(ERROR) << "NGramFst::Read: Can't open file: " << source;
+        LOG(ERROR) << "NGramFst::Read: Can't open file: " << filename;
         return nullptr;
       }
-      return Read(strm, FstReadOptions(source));
+      return Read(strm, FstReadOptions(filename));
     } else {
       return Read(std::cin, FstReadOptions("standard input"));
     }
@@ -424,8 +400,8 @@ class NGramFst : public ImplToExpandedFst<internal::NGramFstImpl<A>> {
     return GetImpl()->Write(strm, opts);
   }
 
-  bool Write(const std::string &source) const override {
-    return Fst<A>::WriteFile(source);
+  bool Write(const string &filename) const override {
+    return Fst<A>::WriteFile(filename);
   }
 
   inline void InitStateIterator(StateIteratorData<A> *data) const override {
@@ -475,10 +451,11 @@ class NGramFst : public ImplToExpandedFst<internal::NGramFstImpl<A>> {
   }
 
  private:
-  using Base::GetImpl;
-  using Base::GetMutableImpl;
+  using ImplToExpandedFst<Impl, ExpandedFst<A>>::GetImpl;
+  using ImplToExpandedFst<Impl, ExpandedFst<A>>::GetMutableImpl;
 
-  explicit NGramFst(std::shared_ptr<Impl> impl) : Base(impl) {}
+  explicit NGramFst(std::shared_ptr<Impl> impl)
+      : ImplToExpandedFst<Impl>(impl) {}
 
   mutable NGramFstInst<A> inst_;
 };
@@ -488,7 +465,7 @@ inline void NGramFst<A>::InitArcIterator(StateId s,
                                          ArcIteratorData<A> *data) const {
   GetImpl()->SetInstFuture(s, &inst_);
   GetImpl()->SetInstNode(&inst_);
-  data->base = std::make_unique<ArcIterator<NGramFst<A>>>(*this, s);
+  data->base = new ArcIterator<NGramFst<A>>(*this, s);
 }
 
 namespace internal {
@@ -512,13 +489,13 @@ NGramFstImpl<A>::NGramFstImpl(const Fst<A> &fst,
     return;
   }
 
-  int64_t num_states = CountStates(fst);
-  std::vector<Label> context(num_states, 0);
+  int64 num_states = CountStates(fst);
+  Label *context = new Label[num_states];
 
   // Find the unigram state by starting from the start state, following
   // epsilons.
   StateId unigram = fst.Start();
-  while (true) {
+  while (1) {
     if (unigram == kNoStateId) {
       FSTERROR() << "Could not identify unigram state";
       SetProperties(kError, kError);
@@ -568,7 +545,7 @@ NGramFstImpl<A>::NGramFstImpl(const Fst<A> &fst,
 
   // Build the tree of contexts fst by reversing the epsilon arcs from fst.
   VectorFst<Arc> context_fst;
-  uint64_t num_final = 0;
+  uint64 num_final = 0;
   for (int i = 0; i < num_states; ++i) {
     if (fst.Final(i) != Weight::Zero()) {
       ++num_final;
@@ -578,8 +555,8 @@ NGramFstImpl<A>::NGramFstImpl(const Fst<A> &fst,
   context_fst.SetStart(unigram);
   context_fst.SetInputSymbols(fst.InputSymbols());
   context_fst.SetOutputSymbols(fst.OutputSymbols());
-  int64_t num_context_arcs = 0;
-  int64_t num_futures = 0;
+  int64 num_context_arcs = 0;
+  int64 num_futures = 0;
   for (StateIterator<Fst<A>> siter(fst); !siter.Done(); siter.Next()) {
     const StateId &state = siter.Value();
     num_futures += fst.NumArcs(state) - fst.NumInputEpsilons(state);
@@ -605,7 +582,7 @@ NGramFstImpl<A>::NGramFstImpl(const Fst<A> &fst,
     SetProperties(kError, kError);
     return;
   }
-  int64_t context_props =
+  int64 context_props =
       context_fst.Properties(kIDeterministic | kILabelSorted, true);
   if (!(context_props & kIDeterministic)) {
     FSTERROR() << "Input Fst is not structured properly";
@@ -616,12 +593,14 @@ NGramFstImpl<A>::NGramFstImpl(const Fst<A> &fst,
     ArcSort(&context_fst, ILabelCompare<Arc>());
   }
 
-  uint64_t b64;
+  delete[] context;
+
+  uint64 b64;
   Weight weight;
   Label label = kNoLabel;
   const size_t storage = Storage(num_states, num_futures, num_final);
-  std::unique_ptr<MappedFile> data_region(MappedFile::Allocate(storage));
-  char *data = static_cast<char *>(data_region->mutable_data());
+  MappedFile *data_region = MappedFile::Allocate(storage);
+  char *data = reinterpret_cast<char *>(data_region->mutable_data());
   memset(data, 0, storage);
   size_t offset = 0;
   memcpy(data + offset, reinterpret_cast<char *>(&num_states),
@@ -633,12 +612,12 @@ NGramFstImpl<A>::NGramFstImpl(const Fst<A> &fst,
   memcpy(data + offset, reinterpret_cast<char *>(&num_final),
          sizeof(num_final));
   offset += sizeof(num_final);
-  uint64_t *context_bits = reinterpret_cast<uint64_t *>(data + offset);
+  uint64 *context_bits = reinterpret_cast<uint64 *>(data + offset);
   offset += BitmapIndex::StorageSize(num_states * 2 + 1) * sizeof(b64);
-  uint64_t *future_bits = reinterpret_cast<uint64_t *>(data + offset);
+  uint64 *future_bits = reinterpret_cast<uint64 *>(data + offset);
   offset +=
       BitmapIndex::StorageSize(num_futures + num_states + 1) * sizeof(b64);
-  uint64_t *final_bits = reinterpret_cast<uint64_t *>(data + offset);
+  uint64 *final_bits = reinterpret_cast<uint64 *>(data + offset);
   offset += BitmapIndex::StorageSize(num_states) * sizeof(b64);
   Label *context_words = reinterpret_cast<Label *>(data + offset);
   offset += (num_states + 1) * sizeof(label);
@@ -650,8 +629,8 @@ NGramFstImpl<A>::NGramFstImpl(const Fst<A> &fst,
   Weight *final_probs = reinterpret_cast<Weight *>(data + offset);
   offset += num_final * sizeof(weight);
   Weight *future_probs = reinterpret_cast<Weight *>(data + offset);
-  int64_t context_arc = 0, future_arc = 0, context_bit = 0, future_bit = 0,
-          final_bit = 0;
+  int64 context_arc = 0, future_arc = 0, context_bit = 0, future_bit = 0,
+        final_bit = 0;
 
   // pseudo-root bits
   BitmapIndex::Set(context_bits, context_bit++);
@@ -716,29 +695,33 @@ NGramFstImpl<A>::NGramFstImpl(const Fst<A> &fst,
     return;
   }
 
-  Init(data, std::move(data_region));
+  Init(data, false, data_region);
 }
 
 template <typename A>
-inline void NGramFstImpl<A>::Init(const char *data,
-                                  std::unique_ptr<MappedFile> data_region) {
-  data_region_ = std::move(data_region);
+inline void NGramFstImpl<A>::Init(const char *data, bool owned,
+                                  MappedFile *data_region) {
+  if (owned_) {
+    delete[] data_;
+  }
+  data_region_.reset(data_region);
+  owned_ = owned;
   data_ = data;
   size_t offset = 0;
-  num_states_ = *(reinterpret_cast<const uint64_t *>(data_ + offset));
+  num_states_ = *(reinterpret_cast<const uint64 *>(data_ + offset));
   offset += sizeof(num_states_);
-  num_futures_ = *(reinterpret_cast<const uint64_t *>(data_ + offset));
+  num_futures_ = *(reinterpret_cast<const uint64 *>(data_ + offset));
   offset += sizeof(num_futures_);
-  num_final_ = *(reinterpret_cast<const uint64_t *>(data_ + offset));
+  num_final_ = *(reinterpret_cast<const uint64 *>(data_ + offset));
   offset += sizeof(num_final_);
-  uint64_t bits;
+  uint64 bits;
   size_t context_bits = num_states_ * 2 + 1;
   size_t future_bits = num_futures_ + num_states_ + 1;
-  context_ = reinterpret_cast<const uint64_t *>(data_ + offset);
+  context_ = reinterpret_cast<const uint64 *>(data_ + offset);
   offset += BitmapIndex::StorageSize(context_bits) * sizeof(bits);
-  future_ = reinterpret_cast<const uint64_t *>(data_ + offset);
+  future_ = reinterpret_cast<const uint64 *>(data_ + offset);
   offset += BitmapIndex::StorageSize(future_bits) * sizeof(bits);
-  final_ = reinterpret_cast<const uint64_t *>(data_ + offset);
+  final_ = reinterpret_cast<const uint64 *>(data_ + offset);
   offset += BitmapIndex::StorageSize(num_states_) * sizeof(bits);
   context_words_ = reinterpret_cast<const Label *>(data_ + offset);
   offset += (num_states_ + 1) * sizeof(*context_words_);
@@ -751,12 +734,8 @@ inline void NGramFstImpl<A>::Init(const char *data,
   offset += num_final_ * sizeof(*final_probs_);
   future_probs_ = reinterpret_cast<const Weight *>(data_ + offset);
 
-  context_index_.BuildIndex(context_, context_bits,
-                            /*enable_select_0_index=*/true,
-                            /*enable_select_1_index=*/true);
-  future_index_.BuildIndex(future_, future_bits,
-                           /*enable_select_0_index=*/true,
-                           /*enable_select_1_index=*/false);
+  context_index_.BuildIndex(context_, context_bits);
+  future_index_.BuildIndex(future_, future_bits);
   final_index_.BuildIndex(final_, num_states_);
 
   select_root_ = context_index_.Select0s(0);
@@ -786,7 +765,7 @@ inline typename A::StateId NGramFstImpl<A>::Transition(
       (node_rank == 0) ? select_root_ : context_index_.Select0s(node_rank);
   size_t first_child = zeros.first + 1;
   if (context_index_.Get(first_child) == false) {
-    return node_rank;
+    return context_index_.Rank1(node);
   }
   size_t last_child = zeros.second - 1;
   for (int word = context.size() - 1; word >= 0; --word) {
@@ -805,7 +784,7 @@ inline typename A::StateId NGramFstImpl<A>::Transition(
     if (context_index_.Get(first_child) == false) break;
     last_child = zeros.second - 1;
   }
-  return node_rank;
+  return context_index_.Rank1(node);
 }
 
 }  // namespace internal
@@ -865,7 +844,7 @@ class NGramFstMatcher : public MatcherBase<A> {
 
   const Fst<A> &GetFst() const override { return fst_; }
 
-  uint64_t Properties(uint64_t props) const override { return props; }
+  uint64 Properties(uint64 props) const override { return props; }
 
   void SetState(StateId s) final {
     fst_.GetImpl()->SetInstFuture(s, &inst_);
@@ -946,10 +925,7 @@ class StateIterator<NGramFst<A>> : public StateIteratorBase<A> {
 
   bool Done() const final { return s_ >= num_states_; }
 
-  StateId Value() const final {
-    DCHECK(!Done());
-    return s_;
-  }
+  StateId Value() const final { return s_; }
 
   void Next() final { ++s_; }
 
@@ -982,7 +958,6 @@ class ArcIterator<NGramFst<A>> : public ArcIteratorBase<A> {
   }
 
   const Arc &Value() const final {
-    DCHECK(!Done());
     bool eps = (inst_.node_ != 0 && i_ == 0);
     StateId state = (inst_.node_ == 0) ? i_ : i_ - 1;
     if (flags_ & lazy_ & (kArcILabelValue | kArcOLabelValue)) {
@@ -1031,21 +1006,21 @@ class ArcIterator<NGramFst<A>> : public ArcIteratorBase<A> {
     }
   }
 
-  uint8_t Flags() const final { return flags_; }
+  uint32 Flags() const final { return flags_; }
 
-  void SetFlags(uint8_t flags, uint8_t mask) final {
+  void SetFlags(uint32 flags, uint32 mask) final {
     flags_ &= ~mask;
     flags_ |= (flags & kArcValueFlags);
   }
 
  private:
   mutable Arc arc_;
-  mutable uint8_t lazy_;
+  mutable uint32 lazy_;
   const internal::NGramFstImpl<A> *impl_;  // Borrowed reference.
   mutable NGramFstInst<A> inst_;
 
   size_t i_;
-  uint8_t flags_;
+  uint32 flags_;
 };
 
 }  // namespace fst

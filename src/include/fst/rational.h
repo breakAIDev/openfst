@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -22,20 +8,13 @@
 #define FST_RATIONAL_H_
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include <fst/cache.h>
-#include <fst/fst.h>
-#include <fst/impl-to-fst.h>
 #include <fst/mutable-fst.h>
-#include <fst/properties.h>
 #include <fst/replace.h>
-#include <fst/vector-fst.h>
+#include <fst/test-properties.h>
+
 
 namespace fst {
 
@@ -114,10 +93,10 @@ class RationalFstImpl : public FstImpl<A> {
     return Replace()->NumOutputEpsilons(s);
   }
 
-  uint64_t Properties() const override { return Properties(kFstProperties); }
+  uint64 Properties() const override { return Properties(kFstProperties); }
 
   // Sets error if found, and returns other FST impl properties.
-  uint64_t Properties(uint64_t mask) const override {
+  uint64 Properties(uint64 mask) const override {
     if ((mask & kError) && Replace()->Properties(kError, false)) {
       SetProperties(kError, kError);
     }
@@ -134,7 +113,7 @@ class RationalFstImpl : public FstImpl<A> {
     rfst_.AddState();
     rfst_.AddState();
     rfst_.SetStart(0);
-    rfst_.SetFinal(1);
+    rfst_.SetFinal(1, Weight::One());
     rfst_.SetInputSymbols(fst1.InputSymbols());
     rfst_.SetOutputSymbols(fst1.OutputSymbols());
     nonterminals_ = 2;
@@ -156,7 +135,7 @@ class RationalFstImpl : public FstImpl<A> {
     rfst_.AddState();
     rfst_.AddState();
     rfst_.SetStart(0);
-    rfst_.SetFinal(2);
+    rfst_.SetFinal(2, Weight::One());
     rfst_.SetInputSymbols(fst1.InputSymbols());
     rfst_.SetOutputSymbols(fst1.OutputSymbols());
     nonterminals_ = 2;
@@ -176,13 +155,13 @@ class RationalFstImpl : public FstImpl<A> {
     if (closure_type == CLOSURE_STAR) {
       rfst_.AddState();
       rfst_.SetStart(0);
-      rfst_.SetFinal(0);
+      rfst_.SetFinal(0, Weight::One());
       rfst_.EmplaceArc(0, 0, -1, Weight::One(), 0);
     } else {
       rfst_.AddState();
       rfst_.AddState();
       rfst_.SetStart(0);
-      rfst_.SetFinal(1);
+      rfst_.SetFinal(1, Weight::One());
       rfst_.EmplaceArc(0, 0, -1, Weight::One(), 1);
       rfst_.EmplaceArc(1, 0, 0, Weight::One(), 0);
     }
@@ -203,7 +182,7 @@ class RationalFstImpl : public FstImpl<A> {
     afst.AddState();
     afst.AddState();
     afst.SetStart(0);
-    afst.SetFinal(1);
+    afst.SetFinal(1, Weight::One());
     ++nonterminals_;
     afst.EmplaceArc(0, 0, -nonterminals_, Weight::One(), 1);
     Union(&rfst_, afst);
@@ -220,7 +199,7 @@ class RationalFstImpl : public FstImpl<A> {
     afst.AddState();
     afst.AddState();
     afst.SetStart(0);
-    afst.SetFinal(1);
+    afst.SetFinal(1, Weight::One());
     ++nonterminals_;
     afst.EmplaceArc(0, 0, -nonterminals_, Weight::One(), 1);
     if (append) {
@@ -246,8 +225,7 @@ class RationalFstImpl : public FstImpl<A> {
   ReplaceFst<Arc> *Replace() const {
     if (!replace_) {
       fst_tuples_[0].second = rfst_.Copy();
-      replace_ =
-          std::make_unique<ReplaceFst<Arc>>(fst_tuples_, replace_options_);
+      replace_.reset(new ReplaceFst<Arc>(fst_tuples_, replace_options_));
     }
     return replace_.get();
   }
@@ -271,13 +249,11 @@ class RationalFstImpl : public FstImpl<A> {
 // reference counting, delegating most methods to ImplToFst.
 template <class A>
 class RationalFst : public ImplToFst<internal::RationalFstImpl<A>> {
-  using Base = ImplToFst<internal::RationalFstImpl<A>>;
-
  public:
   using Arc = A;
   using StateId = typename Arc::StateId;
 
-  using typename Base::Impl;
+  using Impl = internal::RationalFstImpl<Arc>;
 
   friend class StateIterator<RationalFst<Arc>>;
   friend class ArcIterator<RationalFst<Arc>>;
@@ -295,13 +271,14 @@ class RationalFst : public ImplToFst<internal::RationalFstImpl<A>> {
   }
 
  protected:
-  using Base::GetImpl;
+  using ImplToFst<Impl>::GetImpl;
 
   explicit RationalFst(const RationalFstOptions &opts = RationalFstOptions())
-      : Base(std::make_shared<Impl>(opts)) {}
+      : ImplToFst<Impl>(std::make_shared<Impl>(opts)) {}
 
   // See Fst<>::Copy() for doc.
-  RationalFst(const RationalFst &fst, bool safe = false) : Base(fst, safe) {}
+  RationalFst(const RationalFst<Arc> &fst, bool safe = false)
+      : ImplToFst<Impl>(fst, safe) {}
 
  private:
   RationalFst &operator=(const RationalFst &) = delete;

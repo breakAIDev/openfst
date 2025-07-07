@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -22,27 +8,15 @@
 #ifndef FST_ARC_MAP_H_
 #define FST_ARC_MAP_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <memory>
 #include <string>
-#include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 #include <fst/log.h>
-#include <fst/arc.h>
+
 #include <fst/cache.h>
-#include <fst/expanded-fst.h>
-#include <fst/float-weight.h>
-#include <fst/fst.h>
-#include <fst/impl-to-fst.h>
 #include <fst/mutable-fst.h>
-#include <fst/properties.h>
-#include <fst/string-weight.h>
-#include <fst/symbol-table.h>
-#include <fst/util.h>
-#include <fst/weight.h>
-#include <unordered_map>
+
 
 namespace fst {
 
@@ -72,24 +46,9 @@ enum MapSymbolsAction {
   MAP_NOOP_SYMBOLS
 };
 
-// Determines whether to propagate the kExpanded property, and by extension,
-// whether the `ArcMapFst` is an `ExpandedFst` or not.
-enum class PropagateKExpanded {
-  // The `ArcMapFst` will neither be an `ExpandedFst` nor require one as input.
-  kNo,
-  // The `ArcMapFst` will both be an `ExpandedFst` and require one as input, as
-  // long as the mapper it is templated on can support this.
-  kIfPossible
-  // TODO(wolfsonkin): Add a kYes option.
-};
-
 // The ArcMapper interfaces defines how arcs and final weights are mapped.
-// This is useful for implementing operations that apply to each arc separately
-// and do not change the number of arcs (except possibly superfinal arcs).
-//
-// Having the default constructor, `Properties`, and `FinalAction` as constexpr
-// can allow for a special optimization to be taken for `ArcMapFst` where it can
-// be an `ExpandedFst`.
+// This is useful for implementing operations that do not change the number of
+// arcs (except possibly superfinal arcs).
 //
 // template <class A, class B>
 // class ArcMapper {
@@ -113,7 +72,7 @@ enum class PropagateKExpanded {
 //
 //   // This specifies the known properties of an FST mapped by this mapper. It
 //   takes as argument the input FSTs's known properties.
-//   uint64_t Properties(uint64_t props) const;
+//   uint64 Properties(uint64 props) const;
 // };
 //
 // The ArcMap functions and classes below will use the FinalAction()
@@ -125,12 +84,12 @@ enum class PropagateKExpanded {
 // whether the mapping mutates its input, writes to a new result FST, or is an
 // on-the-fly FST. Another dimension is how we pass the mapper. We allow passing
 // the mapper by pointer for cases that we need to change the state of the
-// user's mapper. This is the case with the EncodeMapper, which is reused
+// user's mapper.  This is the case with the EncodeMapper, which is reused
 // during decoding. We also include map versions that pass the mapper by value
 // or const reference when this suffices.
 
 // Maps an arc type A using a mapper function object C, passed
-// by pointer. This version modifies its Fst input.
+// by pointer.  This version modifies its Fst input.
 template <class A, class C>
 void ArcMap(MutableFst<A> *fst, C *mapper) {
   using FromArc = A;
@@ -148,7 +107,7 @@ void ArcMap(MutableFst<A> *fst, C *mapper) {
   auto superfinal = kNoStateId;
   if (final_action == MAP_REQUIRE_SUPERFINAL) {
     superfinal = fst->AddState();
-    fst->SetFinal(superfinal);
+    fst->SetFinal(superfinal, Weight::One());
   }
   for (StateIterator<MutableFst<FromArc>> siter(*fst); !siter.Done();
        siter.Next()) {
@@ -178,7 +137,7 @@ void ArcMap(MutableFst<A> *fst, C *mapper) {
             // Add a superfinal state if not already done.
             if (superfinal == kNoStateId) {
               superfinal = fst->AddState();
-              fst->SetFinal(superfinal);
+              fst->SetFinal(superfinal, Weight::One());
             }
             final_arc.nextstate = superfinal;
             fst->AddArc(state, std::move(final_arc));
@@ -238,9 +197,9 @@ void ArcMap(const Fst<A> &ifst, MutableFst<B> *ofst, C *mapper) {
     return;
   }
   const auto final_action = mapper->FinalAction();
-  if (std::optional<StateId> num_states = ifst.NumStatesIfKnown()) {
-    ofst->ReserveStates(*num_states +
-                        (final_action == MAP_NO_SUPERFINAL ? 0 : 1));
+  if (ifst.Properties(kExpanded, false)) {
+    ofst->ReserveStates(
+        CountStates(ifst) + (final_action == MAP_NO_SUPERFINAL ? 0 : 1));
   }
   // Adds all states.
   for (StateIterator<Fst<A>> siter(ifst); !siter.Done(); siter.Next()) {
@@ -249,7 +208,7 @@ void ArcMap(const Fst<A> &ifst, MutableFst<B> *ofst, C *mapper) {
   StateId superfinal = kNoStateId;
   if (final_action == MAP_REQUIRE_SUPERFINAL) {
     superfinal = ofst->AddState();
-    ofst->SetFinal(superfinal);
+    ofst->SetFinal(superfinal, B::Weight::One());
   }
   for (StateIterator<Fst<A>> siter(ifst); !siter.Done(); siter.Next()) {
     StateId s = siter.Value();
@@ -276,7 +235,7 @@ void ArcMap(const Fst<A> &ifst, MutableFst<B> *ofst, C *mapper) {
           // Add a superfinal state if not already done.
           if (superfinal == kNoStateId) {
             superfinal = ofst->AddState();
-            ofst->SetFinal(superfinal);
+            ofst->SetFinal(superfinal, B::Weight::One());
           }
           final_arc.nextstate = superfinal;
           ofst->AddArc(s, std::move(final_arc));
@@ -318,79 +277,38 @@ struct ArcMapFstOptions : public CacheOptions {
   explicit ArcMapFstOptions(const CacheOptions &opts) : CacheOptions(opts) {}
 };
 
-template <class A, class B, class C, class CacheStore,
-          PropagateKExpanded propagate_expanded_fst>
+template <class A, class B, class C>
 class ArcMapFst;
 
 namespace internal {
 
-// ExtractOr<E, O>::type evaluates to E<O> if possible. Otherwise,
-// std::false_type.
-template <template <typename> class Extract, typename Obj, typename>
-struct ExtractOr {
-  using type = std::false_type;
-};
-template <template <typename> class Extract, typename Obj>
-struct ExtractOr<Extract, Obj, std::void_t<Extract<Obj>>> {
-  using type = Extract<Obj>;
-};
-
-template <template <typename> class Extract, typename Obj>
-using ExtractOrT = typename ExtractOr<Extract, Obj, void>::type;
-
-// If the mapper conserves the expanded property and doesn't create a superfinal
-// state, then in the `ArcMapFst` case, we can make `ArcMapFst` both accept and
-// be an `ExpandedFst`.
-// TODO(wolfsonkin): Support kExpanded propagation for other values of
-// `FinalAction()`.
-template <typename C>
-using CoreConditions =
-    std::bool_constant<(C{}.FinalAction() == MAP_NO_SUPERFINAL) &&
-                       (C{}.Properties(kExpanded) == kExpanded)>;
-// If the mapper is default constructible and the input FST is expanded, then
-// the output FST can be expanded.
-template <typename C>
-using IsDefaultConstructibleExpandedNoSuperfinalArcMapper =
-    ExtractOrT<CoreConditions, C>;
-
-// Implementation of delayed ArcMapFst. If `is_expanded` is true, then the
-// implementation will assume the input FST is an `ExpandedFst`, and define
-// `NumStates()`. Otherwise, the `ArcMapFst` will act on any `Fst` input, and
-// calling its `NumStates()` method will not compile.
-template <class A, class B, class C, class CacheStore = DefaultCacheStore<B>,
-          bool is_expanded = false>
-class ArcMapFstImpl
-    : public CacheBaseImpl<typename CacheStore::State, CacheStore> {
+// Implementation of delayed ArcMapFst.
+template <class A, class B, class C>
+class ArcMapFstImpl : public CacheImpl<B> {
  public:
   using Arc = B;
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
-  using FromFst = std::conditional_t<is_expanded, ExpandedFst<A>, Fst<A>>;
 
   using FstImpl<B>::SetType;
   using FstImpl<B>::SetProperties;
   using FstImpl<B>::SetInputSymbols;
   using FstImpl<B>::SetOutputSymbols;
 
-  using State = typename CacheStore::State;
-  using CacheImpl = CacheBaseImpl<State, CacheStore>;
-  using CacheImpl::EmplaceArc;
-  using CacheImpl::HasArcs;
-  using CacheImpl::HasFinal;
-  using CacheImpl::HasStart;
-  using CacheImpl::PushArc;
-  using CacheImpl::SetArcs;
-  using CacheImpl::SetFinal;
-  using CacheImpl::SetStart;
+  using CacheImpl<B>::EmplaceArc;
+  using CacheImpl<B>::HasArcs;
+  using CacheImpl<B>::HasFinal;
+  using CacheImpl<B>::HasStart;
+  using CacheImpl<B>::PushArc;
+  using CacheImpl<B>::SetArcs;
+  using CacheImpl<B>::SetFinal;
+  using CacheImpl<B>::SetStart;
 
-  friend class StateIterator<
-      ArcMapFst<A, B, C, CacheStore, PropagateKExpanded::kIfPossible>>;
-  friend class StateIterator<
-      ArcMapFst<A, B, C, CacheStore, PropagateKExpanded::kNo>>;
+  friend class StateIterator<ArcMapFst<A, B, C>>;
 
-  ArcMapFstImpl(const FromFst &fst, const C &mapper,
+  ArcMapFstImpl(const Fst<A> &fst, const C &mapper,
                 const ArcMapFstOptions &opts)
-      : CacheImpl(opts),
+      : CacheImpl<B>(opts),
         fst_(fst.Copy()),
         mapper_(new C(mapper)),
         own_mapper_(true),
@@ -399,8 +317,8 @@ class ArcMapFstImpl
     Init();
   }
 
-  ArcMapFstImpl(const FromFst &fst, C *mapper, const ArcMapFstOptions &opts)
-      : CacheImpl(opts),
+  ArcMapFstImpl(const Fst<A> &fst, C *mapper, const ArcMapFstOptions &opts)
+      : CacheImpl<B>(opts),
         fst_(fst.Copy()),
         mapper_(mapper),
         own_mapper_(false),
@@ -409,8 +327,8 @@ class ArcMapFstImpl
     Init();
   }
 
-  ArcMapFstImpl(const ArcMapFstImpl &impl)
-      : CacheImpl(impl),
+  ArcMapFstImpl(const ArcMapFstImpl<A, B, C> &impl)
+      : CacheImpl<B>(impl),
         fst_(impl.fst_->Copy(true)),
         mapper_(new C(*impl.mapper_)),
         own_mapper_(true),
@@ -425,7 +343,7 @@ class ArcMapFstImpl
 
   StateId Start() {
     if (!HasStart()) SetStart(FindOState(fst_->Start()));
-    return CacheImpl::Start();
+    return CacheImpl<B>::Start();
   }
 
   Weight Final(StateId s) {
@@ -444,7 +362,7 @@ class ArcMapFstImpl
         }
         case MAP_ALLOW_SUPERFINAL: {
           if (s == superfinal_) {
-            SetFinal(s);
+            SetFinal(s, Weight::One());
           } else {
             const auto final_arc =
                 (*mapper_)(A(0, 0, fst_->Final(FindIState(s)), kNoStateId));
@@ -462,39 +380,28 @@ class ArcMapFstImpl
         }
       }
     }
-    return CacheImpl::Final(s);
+    return CacheImpl<B>::Final(s);
   }
 
   size_t NumArcs(StateId s) {
-    if (final_action_ == MAP_NO_SUPERFINAL) return fst_->NumArcs(s);
     if (!HasArcs(s)) Expand(s);
-    return CacheImpl::NumArcs(s);
+    return CacheImpl<B>::NumArcs(s);
   }
 
   size_t NumInputEpsilons(StateId s) {
     if (!HasArcs(s)) Expand(s);
-    return CacheImpl::NumInputEpsilons(s);
+    return CacheImpl<B>::NumInputEpsilons(s);
   }
 
   size_t NumOutputEpsilons(StateId s) {
     if (!HasArcs(s)) Expand(s);
-    return CacheImpl::NumOutputEpsilons(s);
+    return CacheImpl<B>::NumOutputEpsilons(s);
   }
 
-  // This should only be called when `fst_` is known to be an `ExpandedFst`.
-  StateId NumStates() const {
-    static_assert(is_expanded,
-                  "NumStates() only supported if the input is an ExpandedFst");
-    static_assert(CoreConditions<C>::value,
-                  "NumStates() only supported for mappers that conserve the "
-                  "expanded property and don't create a superfinal state");
-    return fst_->NumStates();
-  }
-
-  uint64_t Properties() const override { return Properties(kFstProperties); }
+  uint64 Properties() const override { return Properties(kFstProperties); }
 
   // Sets error if found, and returns other FST impl properties.
-  uint64_t Properties(uint64_t mask) const override {
+  uint64 Properties(uint64 mask) const override {
     if ((mask & kError) && (fst_->Properties(kError, false) ||
                             (mapper_->Properties(0) & kError))) {
       SetProperties(kError, kError);
@@ -504,7 +411,7 @@ class ArcMapFstImpl
 
   void InitArcIterator(StateId s, ArcIteratorData<B> *data) {
     if (!HasArcs(s)) Expand(s);
-    CacheImpl::InitArcIterator(s, data);
+    CacheImpl<B>::InitArcIterator(s, data);
   }
 
   void Expand(StateId s) {
@@ -513,7 +420,7 @@ class ArcMapFstImpl
       SetArcs(s);
       return;
     }
-    for (ArcIterator<FromFst> aiter(*fst_, FindIState(s)); !aiter.Done();
+    for (ArcIterator<Fst<A>> aiter(*fst_, FindIState(s)); !aiter.Done();
          aiter.Next()) {
       auto aarc = aiter.Value();
       aarc.nextstate = FindOState(aarc.nextstate);
@@ -569,7 +476,7 @@ class ArcMapFstImpl
       SetProperties(kNullProperties);
     } else {
       final_action_ = mapper_->FinalAction();
-      uint64_t props = fst_->Properties(kCopyProperties, false);
+      uint64 props = fst_->Properties(kCopyProperties, false);
       SetProperties(mapper_->Properties(props));
       if (final_action_ == MAP_REQUIRE_SUPERFINAL) superfinal_ = 0;
     }
@@ -592,7 +499,7 @@ class ArcMapFstImpl
     return os;
   }
 
-  std::unique_ptr<const FromFst> fst_;
+  std::unique_ptr<const Fst<A>> fst_;
   C *mapper_;
   const bool own_mapper_;
   MapFinalAction final_action_;
@@ -600,63 +507,45 @@ class ArcMapFstImpl
   StateId nstates_;
 };
 
-template <class A, class B, class C, class CacheStore,
-          PropagateKExpanded should_propagate_expanded_fst>
-using ArcMapFstBase = std::conditional_t<
-    should_propagate_expanded_fst == PropagateKExpanded::kIfPossible &&
-        internal::IsDefaultConstructibleExpandedNoSuperfinalArcMapper<C>::value,
-    ImplToExpandedFst<internal::ArcMapFstImpl<A, B, C, CacheStore,
-                                              /*is_expanded=*/true>>,
-    ImplToFst<internal::ArcMapFstImpl<A, B, C, CacheStore,
-                                      /*is_expanded=*/false>>>;
-
 }  // namespace internal
 
 // Maps an arc type A to an arc type B using Mapper function object
-// C. This version is a delayed FST. If `propagate_expanded_fst` is true,
-// and the `ArcMapper` is known to be capable of maintaining `ExpandedFst<B>`
-// status, the resulting `ArcMapFst` will be an `ExpandedFst<B>`, and will
-// exclusively accept `ExpandedFst<B>`s as input in the constructor. Otherwise,
-// it will be an `Fst<B>` that accepts `Fst<B>` as input.
-// `propagate_expanded_fst` will be set automatically when using CTAD, but
-// otherwise must be opted into manually if one needs to ensure to maintain
-// `ExpandedFst` status.
-template <class A, class B, class C, class CacheStore = DefaultCacheStore<B>,
-          PropagateKExpanded propagate_expanded_fst = PropagateKExpanded::kNo>
-class ArcMapFst : public internal::ArcMapFstBase<A, B, C, CacheStore,
-                                                 propagate_expanded_fst> {
-  using Base =
-      internal::ArcMapFstBase<A, B, C, CacheStore, propagate_expanded_fst>;
-
+// C. This version is a delayed FST.
+template <class A, class B, class C>
+class ArcMapFst : public ImplToFst<internal::ArcMapFstImpl<A, B, C>> {
  public:
   using Arc = B;
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
 
-  using Store = CacheStore;
+  using Store = DefaultCacheStore<B>;
   using State = typename Store::State;
-  using typename Base::Impl;
-  using FromFst = typename Impl::FromFst;
+  using Impl = internal::ArcMapFstImpl<A, B, C>;
 
-  friend class ArcIterator<
-      ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>>;
-  friend class StateIterator<
-      ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>>;
+  friend class ArcIterator<ArcMapFst<A, B, C>>;
+  friend class StateIterator<ArcMapFst<A, B, C>>;
 
-  explicit ArcMapFst(const FromFst &fst, const C &mapper = C(),
-                     const ArcMapFstOptions &opts = ArcMapFstOptions())
-      : Base(std::make_shared<Impl>(fst, mapper, opts)) {}
+  ArcMapFst(const Fst<A> &fst, const C &mapper, const ArcMapFstOptions &opts)
+      : ImplToFst<Impl>(std::make_shared<Impl>(fst, mapper, opts)) {}
 
-  ArcMapFst(const FromFst &fst, C *mapper,
-            const ArcMapFstOptions &opts = ArcMapFstOptions())
-      : Base(std::make_shared<Impl>(fst, mapper, opts)) {}
+  ArcMapFst(const Fst<A> &fst, C *mapper, const ArcMapFstOptions &opts)
+      : ImplToFst<Impl>(std::make_shared<Impl>(fst, mapper, opts)) {}
+
+  ArcMapFst(const Fst<A> &fst, const C &mapper)
+      : ImplToFst<Impl>(
+            std::make_shared<Impl>(fst, mapper, ArcMapFstOptions())) {}
+
+  ArcMapFst(const Fst<A> &fst, C *mapper)
+      : ImplToFst<Impl>(
+            std::make_shared<Impl>(fst, mapper, ArcMapFstOptions())) {}
 
   // See Fst<>::Copy() for doc.
-  ArcMapFst(const ArcMapFst &fst, bool safe = false) : Base(fst, safe) {}
+  ArcMapFst(const ArcMapFst<A, B, C> &fst, bool safe = false)
+      : ImplToFst<Impl>(fst, safe) {}
 
   // Get a copy of this ArcMapFst. See Fst<>::Copy() for further doc.
-  ArcMapFst *Copy(bool safe = false) const override {
-    return new ArcMapFst(*this, safe);
+  ArcMapFst<A, B, C> *Copy(bool safe = false) const override {
+    return new ArcMapFst<A, B, C>(*this, safe);
   }
 
   inline void InitStateIterator(StateIteratorData<B> *data) const override;
@@ -666,8 +555,8 @@ class ArcMapFst : public internal::ArcMapFstBase<A, B, C, CacheStore,
   }
 
  protected:
-  using Base::GetImpl;
-  using Base::GetMutableImpl;
+  using ImplToFst<Impl>::GetImpl;
+  using ImplToFst<Impl>::GetMutableImpl;
 
  private:
   ArcMapFst &operator=(const ArcMapFst &) = delete;
@@ -676,15 +565,12 @@ class ArcMapFst : public internal::ArcMapFstBase<A, B, C, CacheStore,
 // Specialization for ArcMapFst.
 //
 // This may be derived from.
-template <class A, class B, class C, class CacheStore,
-          PropagateKExpanded propagate_expanded_fst>
-class StateIterator<ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>>
-    : public StateIteratorBase<B> {
+template <class A, class B, class C>
+class StateIterator<ArcMapFst<A, B, C>> : public StateIteratorBase<B> {
  public:
-  using FST = ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>;
   using StateId = typename B::StateId;
 
-  explicit StateIterator(const FST &fst)
+  explicit StateIterator(const ArcMapFst<A, B, C> &fst)
       : impl_(fst.GetImpl()),
         siter_(*impl_->fst_),
         s_(0),
@@ -723,71 +609,30 @@ class StateIterator<ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>>
     }
   }
 
-  const typename FST::Impl *impl_;
-  StateIterator<typename FST::FromFst> siter_;
+  const internal::ArcMapFstImpl<A, B, C> *impl_;
+  StateIterator<Fst<A>> siter_;
   StateId s_;
   bool superfinal_;  // True if there is a superfinal state and not done.
 };
 
 // Specialization for ArcMapFst.
-template <class A, class B, class C, class CacheStore,
-          PropagateKExpanded propagate_expanded_fst>
-class ArcIterator<ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>>
-    : public CacheArcIterator<
-          ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>> {
+template <class A, class B, class C>
+class ArcIterator<ArcMapFst<A, B, C>>
+    : public CacheArcIterator<ArcMapFst<A, B, C>> {
  public:
   using StateId = typename A::StateId;
-  using FST = ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>;
 
-  ArcIterator(const FST &fst, StateId s)
-      : CacheArcIterator<FST>(fst.GetMutableImpl(), s) {
+  ArcIterator(const ArcMapFst<A, B, C> &fst, StateId s)
+      : CacheArcIterator<ArcMapFst<A, B, C>>(fst.GetMutableImpl(), s) {
     if (!fst.GetImpl()->HasArcs(s)) fst.GetMutableImpl()->Expand(s);
   }
 };
 
-template <class A, class B, class C, class CacheStore,
-          PropagateKExpanded propagate_expanded_fst>
-inline void
-ArcMapFst<A, B, C, CacheStore, propagate_expanded_fst>::InitStateIterator(
+template <class A, class B, class C>
+inline void ArcMapFst<A, B, C>::InitStateIterator(
     StateIteratorData<B> *data) const {
-  data->base = std::make_unique<StateIterator<ArcMapFst>>(*this);
+  data->base = new StateIterator<ArcMapFst<A, B, C>>(*this);
 }
-
-// CTAD deduction guides
-// This allows constructing ArcMapFsts without specifying all the types.
-// If the constructor receives an `ExpandedFst` as the first argument, and the
-// `ArcMapper` is known to be capable of maintaining `ExpandedFst` status, the
-// resulting `ArcMapFst` will be an `ExpandedFst`. Otherwise, it will be an
-// `Fst`
-
-template <class ArcMapper>
-ArcMapFst(const Fst<typename ArcMapper::FromArc> &, const ArcMapper &)
-    -> ArcMapFst<typename ArcMapper::FromArc, typename ArcMapper::ToArc,
-                 ArcMapper, DefaultCacheStore<typename ArcMapper::ToArc>,
-                 PropagateKExpanded::kNo>;
-template <class ArcMapper,
-          typename = std::enable_if_t<
-              internal::IsDefaultConstructibleExpandedNoSuperfinalArcMapper<
-                  ArcMapper>::value>>
-ArcMapFst(const ExpandedFst<typename ArcMapper::FromArc> &, const ArcMapper &)
-    -> ArcMapFst<typename ArcMapper::FromArc, typename ArcMapper::ToArc,
-                 ArcMapper, DefaultCacheStore<typename ArcMapper::ToArc>,
-                 PropagateKExpanded::kIfPossible>;
-
-// As above, but using the ArcMapFst(..., ArcMapper *) constructor.
-template <class ArcMapper>
-ArcMapFst(const Fst<typename ArcMapper::FromArc> &, ArcMapper *)
-    -> ArcMapFst<typename ArcMapper::FromArc, typename ArcMapper::ToArc,
-                 ArcMapper, DefaultCacheStore<typename ArcMapper::ToArc>,
-                 PropagateKExpanded::kNo>;
-template <class ArcMapper,
-          typename = std::enable_if_t<
-              internal::IsDefaultConstructibleExpandedNoSuperfinalArcMapper<
-                  ArcMapper>::value>>
-ArcMapFst(const ExpandedFst<typename ArcMapper::FromArc> &, ArcMapper *)
-    -> ArcMapFst<typename ArcMapper::FromArc, typename ArcMapper::ToArc,
-                 ArcMapper, DefaultCacheStore<typename ArcMapper::ToArc>,
-                 PropagateKExpanded::kIfPossible>;
 
 // Utility Mappers.
 
@@ -810,7 +655,7 @@ class IdentityArcMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const { return props; }
+  constexpr uint64 Properties(uint64 props) const { return props; }
 };
 
 // Mapper that converts all input symbols to epsilon.
@@ -834,7 +679,7 @@ class InputEpsilonMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const {
+  constexpr uint64 Properties(uint64 props) const {
     return (props & kSetArcProperties) | kIEpsilons | kILabelSorted;
   }
 };
@@ -860,7 +705,7 @@ class OutputEpsilonMapper {
     return MAP_CLEAR_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const {
+  constexpr uint64 Properties(uint64 props) const {
     return (props & kSetArcProperties) | kOEpsilons | kOLabelSorted;
   }
 };
@@ -873,10 +718,10 @@ class SuperFinalMapper {
   using FromArc = A;
   using ToArc = A;
   using Label = typename FromArc::Label;
-  using Weight = typename FromArc::Weight;
+  using Weight = typename FromArc::Weight;;
 
   // Arg allows setting super-final label.
-  constexpr explicit SuperFinalMapper(Label final_label = 0)
+  explicit SuperFinalMapper(Label final_label = 0)
       : final_label_(final_label) {}
 
   ToArc operator()(const FromArc &arc) const {
@@ -900,17 +745,17 @@ class SuperFinalMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  uint64_t Properties(uint64_t props) const {
+  uint64 Properties(uint64 props) const {
     if (final_label_ == 0) {
       return props & kAddSuperFinalProperties;
     } else {
-      return props & kAddSuperFinalProperties & kILabelInvariantProperties &
-             kOLabelInvariantProperties;
+      return props & kAddSuperFinalProperties &
+          kILabelInvariantProperties & kOLabelInvariantProperties;
     }
   }
 
  private:
-  const Label final_label_;
+  Label final_label_;
 };
 
 // Mapper that leaves labels and nextstate unchanged and constructs a new weight
@@ -927,11 +772,7 @@ class WeightConvertMapper {
   using FromWeight = typename FromArc::Weight;
   using ToWeight = typename ToArc::Weight;
 
-  // NB: Declares the default constructor only if the converter is default
-  // constructible.
-  constexpr WeightConvertMapper() = default;
-
-  constexpr explicit WeightConvertMapper(const Converter &c)
+  constexpr explicit WeightConvertMapper(const Converter &c = Converter())
       : convert_weight_(c) {}
 
   constexpr ToArc operator()(const FromArc &arc) const {
@@ -949,13 +790,10 @@ class WeightConvertMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const { return props; }
+  constexpr uint64 Properties(uint64 props) const { return props; }
 
  private:
-  // NB: This is non-const only to work around compiler configurations not
-  // implementing CWG defect report 2394:
-  // https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_defects.html#2394.
-  Converter convert_weight_;
+  const Converter convert_weight_;
 };
 
 // Non-precision-changing weight conversions; consider using more efficient
@@ -990,14 +828,14 @@ class ToGallicMapper {
     // Super-final arc.
     if (arc.nextstate == kNoStateId && arc.weight != AW::Zero()) {
       return ToArc(0, 0, GW(SW::One(), arc.weight), kNoStateId);
-      // Super-non-final arc.
+    // Super-non-final arc.
     } else if (arc.nextstate == kNoStateId) {
       return ToArc(0, 0, GW::Zero(), kNoStateId);
-      // Epsilon label.
+    // Epsilon label.
     } else if (arc.olabel == 0) {
       return ToArc(arc.ilabel, arc.ilabel, GW(SW::One(), arc.weight),
                    arc.nextstate);
-      // Regular label.
+    // Regular label.
     } else {
       return ToArc(arc.ilabel, arc.ilabel, GW(SW(arc.olabel), arc.weight),
                    arc.nextstate);
@@ -1014,7 +852,7 @@ class ToGallicMapper {
     return MAP_CLEAR_SYMBOLS;
   }
 
-  uint64_t Properties(uint64_t props) const {
+  uint64 Properties(uint64 props) const {
     return ProjectProperties(props, true) & kWeightInvariantProperties;
   }
 };
@@ -1039,7 +877,7 @@ class FromGallicMapper {
       return A(arc.ilabel, 0, AW::Zero(), kNoStateId);
     }
     Label l = kNoLabel;
-    AW weight = AW::Zero();
+    AW weight;
     if (!Extract(arc.weight, &weight, &l) || arc.ilabel != arc.olabel) {
       FSTERROR() << "FromGallicMapper: Unrepresentable weight: " << arc.weight
                  << " for arc with ilabel = " << arc.ilabel
@@ -1064,9 +902,9 @@ class FromGallicMapper {
     return MAP_CLEAR_SYMBOLS;
   }
 
-  uint64_t Properties(uint64_t inprops) const {
-    uint64_t outprops = inprops & kOLabelInvariantProperties &
-                        kWeightInvariantProperties & kAddSuperFinalProperties;
+  uint64 Properties(uint64 inprops) const {
+    uint64 outprops = inprops & kOLabelInvariantProperties &
+                      kWeightInvariantProperties & kAddSuperFinalProperties;
     if (error_) outprops |= kError;
     return outprops;
   }
@@ -1075,10 +913,10 @@ class FromGallicMapper {
   template <GallicType GT>
   static bool Extract(const GallicWeight<Label, AW, GT> &gallic_weight,
                       typename A::Weight *weight, typename A::Label *label) {
-    using GW = StringWeight<Label, GallicStringType(GT)>;
-    const GW &w1 = gallic_weight.Value1();
+    using GWT = StringWeight<Label, GallicStringType(GT)>;
+    const GWT &w1 = gallic_weight.Value1();
     const AW &w2 = gallic_weight.Value2();
-    typename GW::Iterator iter1(w1);
+    typename GWT::Iterator iter1(w1);
     const Label l = w1.Size() == 1 ? iter1.Value() : 0;
     if (l == kStringInfinity || l == kStringBad || w1.Size() > 1) return false;
     *label = l;
@@ -1123,12 +961,12 @@ class GallicToNewSymbolsMapper {
     fst_->DeleteStates();
     state_ = fst_->AddState();
     fst_->SetStart(state_);
-    fst_->SetFinal(state_);
+    fst_->SetFinal(state_, AW::One());
     if (osymbols_) {
-      std::string name = osymbols_->Name() + "_from_gallic";
+      string name = osymbols_->Name() + "_from_gallic";
       fst_->SetInputSymbols(new SymbolTable(name));
       isymbols_ = fst_->MutableInputSymbols();
-      const int64_t zero = 0;
+      const int64 zero = 0;
       isymbols_->AddSymbol(osymbols_->Find(zero), 0);
     } else {
       fst_->SetInputSymbols(nullptr);
@@ -1145,23 +983,27 @@ class GallicToNewSymbolsMapper {
     Label l;
     if (w1.Size() == 0) {
       l = 0;
-    } else if (auto [it, inserted] = map_.emplace(w1, kNoLabel); !inserted) {
-      l = it->second;
     } else {
-      l = ++lmax_;
-      it->second = l;
-      StringWeightIterator<SW> iter1(w1);
-      StateId n;
-      std::string s;
-      for (size_t i = 0, p = state_; i < w1.Size(); ++i, iter1.Next(), p = n) {
-        n = i == w1.Size() - 1 ? state_ : fst_->AddState();
-        fst_->AddArc(p, ToArc(i ? 0 : l, iter1.Value(), n));
-        if (isymbols_) {
-          if (i) s = s + "_";
-          s = s + osymbols_->Find(iter1.Value());
+      auto insert_result = map_.insert(std::make_pair(w1, kNoLabel));
+      if (!insert_result.second) {
+        l = insert_result.first->second;
+      } else {
+        l = ++lmax_;
+        insert_result.first->second = l;
+        StringWeightIterator<SW> iter1(w1);
+        StateId n;
+        string s;
+        for (size_t i = 0, p = state_; i < w1.Size();
+             ++i, iter1.Next(), p = n) {
+          n = i == w1.Size() - 1 ? state_ : fst_->AddState();
+          fst_->AddArc(p, ToArc(i ? 0 : l, iter1.Value(), AW::One(), n));
+          if (isymbols_) {
+            if (i) s = s + "_";
+            s = s + osymbols_->Find(iter1.Value());
+          }
         }
+        if (isymbols_) isymbols_->AddSymbol(s, l);
       }
-      if (isymbols_) isymbols_->AddSymbol(s, l);
     }
     if (l == kStringInfinity || l == kStringBad || arc.ilabel != arc.olabel) {
       FSTERROR() << "GallicToNewSymbolMapper: Unrepresentable weight: " << l;
@@ -1180,9 +1022,9 @@ class GallicToNewSymbolsMapper {
     return MAP_CLEAR_SYMBOLS;
   }
 
-  uint64_t Properties(uint64_t inprops) const {
-    uint64_t outprops = inprops & kOLabelInvariantProperties &
-                        kWeightInvariantProperties & kAddSuperFinalProperties;
+  uint64 Properties(uint64 inprops) const {
+    uint64 outprops = inprops & kOLabelInvariantProperties &
+                      kWeightInvariantProperties & kAddSuperFinalProperties;
     if (error_) outprops |= kError;
     return outprops;
   }
@@ -1233,7 +1075,7 @@ class PlusMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const {
+  constexpr uint64 Properties(uint64 props) const {
     return props & kWeightInvariantProperties;
   }
 
@@ -1267,7 +1109,7 @@ class TimesMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const {
+  constexpr uint64 Properties(uint64 props) const {
     return props & kWeightInvariantProperties;
   }
 
@@ -1304,7 +1146,7 @@ class PowerMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const {
+  constexpr uint64 Properties(uint64 props) const {
     return props & kWeightInvariantProperties;
   }
 
@@ -1336,7 +1178,7 @@ class InvertWeightMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const {
+  constexpr uint64 Properties(uint64 props) const {
     return props & kWeightInvariantProperties;
   }
 };
@@ -1351,10 +1193,10 @@ class RmWeightMapper {
   using ToWeight = typename ToArc::Weight;
 
   ToArc operator()(const FromArc &arc) const {
-    return ToArc(
-        arc.ilabel, arc.olabel,
-        arc.weight != FromWeight::Zero() ? ToWeight::One() : ToWeight::Zero(),
-        arc.nextstate);
+    return ToArc(arc.ilabel, arc.olabel,
+                 arc.weight != FromWeight::Zero() ?
+                 ToWeight::One() : ToWeight::Zero(),
+                 arc.nextstate);
   }
 
   constexpr MapFinalAction FinalAction() const { return MAP_NO_SUPERFINAL; }
@@ -1367,7 +1209,7 @@ class RmWeightMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const {
+  constexpr uint64 Properties(uint64 props) const {
     return (props & kWeightInvariantProperties) | kUnweighted;
   }
 };
@@ -1400,7 +1242,7 @@ class QuantizeMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const {
+  constexpr uint64 Properties(uint64 props) const {
     return props & kWeightInvariantProperties;
   }
 
@@ -1420,14 +1262,6 @@ class ReverseWeightMapper {
  public:
   using FromArc = A;
   using ToArc = B;
-  static_assert(std::is_same_v<typename ToArc::Weight,
-                               typename FromArc::Weight::ReverseWeight>,
-                "ToArc::Weight must be FromArc::Weight::ReverseWeight");
-  static_assert(std::is_same_v<typename ToArc::Label, typename FromArc::Label>,
-                "ToArc::Label must be FromArc::Label");
-  static_assert(
-      std::is_same_v<typename ToArc::StateId, typename FromArc::StateId>,
-      "ToArc::StateId must be FromArc::StateId");
 
   constexpr ToArc operator()(const FromArc &arc) const {
     return ToArc(arc.ilabel, arc.olabel, arc.weight.Reverse(), arc.nextstate);
@@ -1443,7 +1277,7 @@ class ReverseWeightMapper {
     return MAP_COPY_SYMBOLS;
   }
 
-  constexpr uint64_t Properties(uint64_t props) const { return props; }
+  constexpr uint64 Properties(uint64 props) const { return props; }
 };
 
 }  // namespace fst

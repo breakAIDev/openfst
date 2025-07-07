@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,20 +6,16 @@
 #ifndef FST_STATE_TABLE_H_
 #define FST_STATE_TABLE_H_
 
-#include <sys/types.h>
-
-#include <cstddef>
 #include <deque>
 #include <utility>
 #include <vector>
 
 #include <fst/log.h>
+
 #include <fst/bi-table.h>
 #include <fst/expanded-fst.h>
 #include <fst/filter-state.h>
-#include <fst/fst.h>
-#include <fst/properties.h>
-#include <fst/util.h>
+
 
 namespace fst {
 
@@ -136,7 +118,7 @@ class VectorStateTable : public VectorBiTable<typename T::StateId, T, FP> {
   using VectorBiTable<StateId, StateTuple, FP>::Size;
   using VectorBiTable<StateId, StateTuple, FP>::Fingerprint;
 
-  explicit VectorStateTable(const FP &fingerprint = FP(), size_t table_size = 0)
+  explicit VectorStateTable(FP *fingerprint = nullptr, size_t table_size = 0)
       : VectorBiTable<StateId, StateTuple, FP>(fingerprint, table_size) {}
 
   StateId FindState(const StateTuple &tuple) { return FindId(tuple); }
@@ -161,11 +143,10 @@ class VectorHashStateTable
   using VectorHashBiTable<StateId, StateTuple, Select, FP, H>::Size;
   using VectorHashBiTable<StateId, StateTuple, Select, FP, H>::Selector;
   using VectorHashBiTable<StateId, StateTuple, Select, FP, H>::Fingerprint;
-  using VectorHashBiTable<StateId, StateTuple, Select, FP, H>::HashFunction;
+  using VectorHashBiTable<StateId, StateTuple, Select, FP, H>::Hash;
 
-  VectorHashStateTable(const Select &select, const FP &fingerprint,
-                       const H &hash, size_t vector_size = 0,
-                       size_t tuple_size = 0)
+  VectorHashStateTable(Select *select, FP *fingerprint, H *hash,
+                       size_t vector_size = 0, size_t tuple_size = 0)
       : VectorHashBiTable<StateId, StateTuple, Select, FP, H>(
             select, fingerprint, hash, vector_size, tuple_size) {}
 
@@ -214,7 +195,7 @@ class ErasableStateTable : public ErasableBiTable<typename T::StateId, T, H> {
 //   // Looks up a tuple by state ID.
 //   const ComposeStateTuple<StateId> &Tuple(StateId s) const;
 //
-//   // The number of stored tuples.
+//   // The number of of stored tuples.
 //   StateId Size() const;
 //
 //   // Return true if error was encountered.
@@ -281,7 +262,7 @@ class DefaultComposeStateTuple {
   FilterState fs_;  // State of composition filter.
 };
 
-// Specialization for TrivialFilterState that does not explicitly store the
+// Specialization for TrivialFilterState that does not explicitely store the
 // filter state since it is always the unique non-blocking state.
 template <typename S>
 class DefaultComposeStateTuple<S, TrivialFilterState> {
@@ -289,7 +270,8 @@ class DefaultComposeStateTuple<S, TrivialFilterState> {
   using StateId = S;
   using FilterState = TrivialFilterState;
 
-  DefaultComposeStateTuple() : state_pair_(kNoStateId, kNoStateId) {}
+  DefaultComposeStateTuple()
+      : state_pair_(kNoStateId, kNoStateId) {}
 
   DefaultComposeStateTuple(StateId s1, StateId s2, const FilterState &)
       : state_pair_(s1, s2) {}
@@ -307,7 +289,7 @@ class DefaultComposeStateTuple<S, TrivialFilterState> {
     return (&x == &y) || (x.state_pair_ == y.state_pair_);
   }
 
-  size_t Hash() const { return StateId1() + StateId2() * size_t{7853}; }
+  size_t Hash() const { return StateId1() + StateId2() * 7853; }
 
  private:
   std::pair<StateId, StateId> state_pair_;
@@ -358,7 +340,7 @@ class ComposeFingerprint {
   ComposeFingerprint(StateId nstates1, StateId nstates2)
       : mult1_(nstates1), mult2_(nstates1 * nstates2) {}
 
-  size_t operator()(const StateTuple &tuple) const {
+  size_t operator()(const StateTuple &tuple) {
     return tuple.StateId1() + tuple.StateId2() * mult1_ +
            tuple.GetFilterState().Hash() * mult2_;
   }
@@ -396,13 +378,13 @@ class ProductComposeStateTable
 
   ProductComposeStateTable(const Fst<Arc> &fst1, const Fst<Arc> &fst2,
                            size_t table_size = 0)
-      : StateTable(ComposeFingerprint<StateTuple>(CountStates(fst1),
-                                                  CountStates(fst2)),
+      : StateTable(new ComposeFingerprint<StateTuple>(CountStates(fst1),
+                                                      CountStates(fst2)),
                    table_size) {}
 
   ProductComposeStateTable(
       const ProductComposeStateTable<Arc, StateTuple> &table)
-      : StateTable(ComposeFingerprint<StateTuple>(table.Fingerprint())) {}
+      : StateTable(new ComposeFingerprint<StateTuple>(table.Fingerprint())) {}
 
   constexpr bool Error() const { return false; }
 

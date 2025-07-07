@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -21,25 +7,23 @@
 #ifndef FST_STATE_REACHABLE_H_
 #define FST_STATE_REACHABLE_H_
 
-#include <cstddef>
-#include <cstdlib>
 #include <vector>
 
 #include <fst/log.h>
+
 #include <fst/connect.h>
 #include <fst/dfs-visit.h>
 #include <fst/fst.h>
 #include <fst/interval-set.h>
-#include <fst/properties.h>
-#include <fst/util.h>
 #include <fst/vector-fst.h>
+
 
 namespace fst {
 
 // Computes the (final) states reachable from a given state in an FST. After
 // this visitor has been called, a final state f can be reached from a state
 // s iff (*isets)[s].Member(state2index[f]) is true, where (*isets[s]) is a
-// set of half-open interval of final state indices and state2index[f] maps from
+// set of half-open inteval of final state indices and state2index[f] maps from
 // a final state to its index. If state2index is empty, it is filled-in with
 // suitable indices. If it is non-empty, those indices are used; in this case,
 // the final states must have out-degree 0.

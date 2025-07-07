@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -23,18 +9,9 @@
 #include <algorithm>
 #include <vector>
 
-#include <fst/log.h>
-#include <fst/arc.h>
-#include <fst/cache.h>
-#include <fst/expanded-fst.h>
-#include <fst/float-weight.h>
-#include <fst/fst.h>
-#include <fst/impl-to-fst.h>
 #include <fst/mutable-fst.h>
-#include <fst/properties.h>
 #include <fst/rational.h>
-#include <fst/symbol-table.h>
-#include <fst/util.h>
+
 
 namespace fst {
 
@@ -71,8 +48,8 @@ void Concat(MutableFst<Arc> *fst1, const Fst<Arc> &fst2) {
     return;
   }
   const auto numstates1 = fst1->NumStates();
-  if (std::optional<StateId> numstates2 = fst2.NumStatesIfKnown()) {
-    fst1->ReserveStates(numstates1 + *numstates2);
+  if (fst2.Properties(kExpanded, false)) {
+    fst1->ReserveStates(numstates1 + CountStates(fst2));
   }
   for (StateIterator<Fst<Arc>> siter2(fst2); !siter2.Done(); siter2.Next()) {
     const auto s1 = fst1->AddState();
@@ -100,14 +77,7 @@ void Concat(MutableFst<Arc> *fst1, const Fst<Arc> &fst2) {
   }
 }
 
-// Computes the concatentation of two FSTs. This version modifies its
-// RationalFst input (in first position).
-template <class Arc>
-void Concat(RationalFst<Arc> *fst1, const Fst<Arc> &fst2) {
-  fst1->GetMutableImpl()->AddConcat(fst2, true);
-}
-
-// Computes the concatentation of two FSTs. This version modifies its
+// Computes the concatentation of two FSTs.  This version modifies its
 // MutableFst argument (in second position).
 //
 // Complexity:
@@ -119,7 +89,6 @@ void Concat(RationalFst<Arc> *fst1, const Fst<Arc> &fst2) {
 // FST.
 template <class Arc>
 void Concat(const Fst<Arc> &fst1, MutableFst<Arc> *fst2) {
-  using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
   // Checks that the symbol table are compatible.
   if (!CompatSymbols(fst1.InputSymbols(), fst2->InputSymbols()) ||
@@ -137,8 +106,8 @@ void Concat(const Fst<Arc> &fst1, MutableFst<Arc> *fst2) {
     return;
   }
   const auto numstates2 = fst2->NumStates();
-  if (std::optional<StateId> numstates1 = fst1.NumStatesIfKnown()) {
-    fst2->ReserveStates(numstates2 + *numstates1);
+  if (fst1.Properties(kExpanded, false)) {
+    fst2->ReserveStates(numstates2 + CountStates(fst1));
   }
   for (StateIterator<Fst<Arc>> siter(fst1); !siter.Done(); siter.Next()) {
     const auto s1 = siter.Value();
@@ -165,12 +134,11 @@ void Concat(const Fst<Arc> &fst1, MutableFst<Arc> *fst2) {
   }
 }
 
-// Same as the above but can handle arbitrarily many left-hand-side FSTs,
-// preallocating the states.
+// Computes the concatentation of two FSTs. This version modifies its
+// RationalFst input (in first position).
 template <class Arc>
-void Concat(const std::vector<const Fst<Arc> *> &fsts1, MutableFst<Arc> *fst2) {
-  fst2->ReserveStates(CountStates(fsts1) + fst2->NumStates());
-  for (const auto *fst1 : fsts1) Concat(*fst1, fst2);
+void Concat(RationalFst<Arc> *fst1, const Fst<Arc> &fst2) {
+  fst1->GetMutableImpl()->AddConcat(fst2, true);
 }
 
 // Computes the concatentation of two FSTs. This version modifies its
@@ -197,8 +165,6 @@ using ConcatFstOptions = RationalFstOptions;
 // arc is assumed and exclusive of caching.
 template <class A>
 class ConcatFst : public RationalFst<A> {
-  using Base = RationalFst<A>;
-
  public:
   using Arc = A;
   using StateId = typename Arc::StateId;
@@ -215,17 +181,17 @@ class ConcatFst : public RationalFst<A> {
   }
 
   // See Fst<>::Copy() for doc.
-  ConcatFst(const ConcatFst &fst, bool safe = false)
+  ConcatFst(const ConcatFst<Arc> &fst, bool safe = false)
       : RationalFst<Arc>(fst, safe) {}
 
   // Get a copy of this ConcatFst. See Fst<>::Copy() for further doc.
-  ConcatFst *Copy(bool safe = false) const override {
-    return new ConcatFst(*this, safe);
+  ConcatFst<Arc> *Copy(bool safe = false) const override {
+    return new ConcatFst<Arc>(*this, safe);
   }
 
  private:
-  using Base::GetImpl;
-  using Base::GetMutableImpl;
+  using ImplToFst<internal::RationalFstImpl<Arc>>::GetImpl;
+  using ImplToFst<internal::RationalFstImpl<Arc>>::GetMutableImpl;
 };
 
 // Specialization for ConcatFst.

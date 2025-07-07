@@ -92,15 +92,13 @@ host_triplet = @host@
 @HAVE_BIN_TRUE@bin_PROGRAMS = fstspecial$(EXEEXT)
 subdir = src/extensions/special
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ax_python_devel.m4 \
-	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
-	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
-	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
-CONFIG_HEADER = $(top_builddir)/config.h
+CONFIG_HEADER = $(top_builddir)/config.h \
+	$(top_builddir)/src/include/fst/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(libdir)" \
@@ -134,7 +132,9 @@ am__uninstall_files_from_dir = { \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
 LTLIBRARIES = $(lib_LTLIBRARIES) $(libfst_LTLIBRARIES)
-libfstspecial_la_LIBADD =
+am__DEPENDENCIES_1 =
+libfstspecial_la_DEPENDENCIES = ../../lib/libfst.la \
+	$(am__DEPENDENCIES_1)
 am_libfstspecial_la_OBJECTS = phi-fst.lo rho-fst.lo sigma-fst.lo
 libfstspecial_la_OBJECTS = $(am_libfstspecial_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -145,19 +145,19 @@ libfstspecial_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(libfstspecial_la_LDFLAGS) \
 	$(LDFLAGS) -o $@
-phi_fst_la_LIBADD =
+phi_fst_la_DEPENDENCIES = ../../lib/libfst.la $(am__DEPENDENCIES_1)
 am_phi_fst_la_OBJECTS = phi-fst.lo
 phi_fst_la_OBJECTS = $(am_phi_fst_la_OBJECTS)
 phi_fst_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(phi_fst_la_LDFLAGS) $(LDFLAGS) -o $@
-rho_fst_la_LIBADD =
+rho_fst_la_DEPENDENCIES = ../../lib/libfst.la $(am__DEPENDENCIES_1)
 am_rho_fst_la_OBJECTS = rho-fst.lo
 rho_fst_la_OBJECTS = $(am_rho_fst_la_OBJECTS)
 rho_fst_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(rho_fst_la_LDFLAGS) $(LDFLAGS) -o $@
-sigma_fst_la_LIBADD =
+sigma_fst_la_DEPENDENCIES = ../../lib/libfst.la $(am__DEPENDENCIES_1)
 am_sigma_fst_la_OBJECTS = sigma-fst.lo
 sigma_fst_la_OBJECTS = $(am_sigma_fst_la_OBJECTS)
 sigma_fst_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
@@ -171,7 +171,9 @@ am__fstspecial_SOURCES_DIST = fstspecial.cc phi-fst.cc rho-fst.cc \
 @HAVE_BIN_TRUE@	fstspecial-rho-fst.$(OBJEXT) \
 @HAVE_BIN_TRUE@	fstspecial-sigma-fst.$(OBJEXT)
 fstspecial_OBJECTS = $(am_fstspecial_OBJECTS)
-@HAVE_BIN_TRUE@fstspecial_DEPENDENCIES = ../../script/libfstscript.la
+fstspecial_LDADD = $(LDADD)
+@HAVE_BIN_TRUE@fstspecial_DEPENDENCIES = ../../script/libfstscript.la \
+@HAVE_BIN_TRUE@	../../lib/libfst.la $(am__DEPENDENCIES_1)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -283,7 +285,7 @@ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
-LIBS = ../../lib/libfst.la -lm $(DL_LIBS)
+LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -311,7 +313,8 @@ PYTHON_CPPFLAGS = @PYTHON_CPPFLAGS@
 PYTHON_EXEC_PREFIX = @PYTHON_EXEC_PREFIX@
 PYTHON_EXTRA_LDFLAGS = @PYTHON_EXTRA_LDFLAGS@
 PYTHON_EXTRA_LIBS = @PYTHON_EXTRA_LIBS@
-PYTHON_LIBS = @PYTHON_LIBS@
+PYTHON_LDFLAGS = @PYTHON_LDFLAGS@
+PYTHON_LIB_PREFIX = @PYTHON_LIB_PREFIX@
 PYTHON_PLATFORM = @PYTHON_PLATFORM@
 PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_SITE_PKG = @PYTHON_SITE_PKG@
@@ -382,19 +385,25 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = -I$(srcdir)/../../include -I$(srcdir)/../../bin $(ICU_CPPFLAGS)
+@HAVE_BIN_TRUE@LDADD = ../../script/libfstscript.la \
+@HAVE_BIN_TRUE@        ../../lib/libfst.la -lm $(DL_LIBS)
+
 @HAVE_BIN_TRUE@fstspecial_SOURCES = fstspecial.cc phi-fst.cc rho-fst.cc sigma-fst.cc
 @HAVE_BIN_TRUE@fstspecial_CPPFLAGS = $(AM_CPPFLAGS)
-@HAVE_BIN_TRUE@fstspecial_LDADD = ../../script/libfstscript.la
 libfst_LTLIBRARIES = phi-fst.la rho-fst.la sigma-fst.la
 lib_LTLIBRARIES = libfstspecial.la
 libfstspecial_la_SOURCES = phi-fst.cc rho-fst.cc sigma-fst.cc
-libfstspecial_la_LDFLAGS = -version-info 26:0:0
+libfstspecial_la_LDFLAGS = -version-info 16:0:0 -lm $(DL_LIBS)
+libfstspecial_la_LIBADD = ../../lib/libfst.la -lm $(DL_LIBS)
 phi_fst_la_SOURCES = phi-fst.cc
-phi_fst_la_LDFLAGS = -avoid-version -module
+phi_fst_la_LDFLAGS = -module
+phi_fst_la_LIBADD = ../../lib/libfst.la -lm $(DL_LIBS)
 rho_fst_la_SOURCES = rho-fst.cc
-rho_fst_la_LDFLAGS = -avoid-version -module
+rho_fst_la_LDFLAGS = -module
+rho_fst_la_LIBADD = ../../lib/libfst.la -lm $(DL_LIBS)
 sigma_fst_la_SOURCES = sigma-fst.cc
-sigma_fst_la_LDFLAGS = -avoid-version -module
+sigma_fst_la_LDFLAGS = -module
+sigma_fst_la_LIBADD = ../../lib/libfst.la -lm $(DL_LIBS)
 all: all-am
 
 .SUFFIXES:

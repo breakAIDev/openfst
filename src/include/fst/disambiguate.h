@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,39 +6,24 @@
 #ifndef FST_DISAMBIGUATE_H_
 #define FST_DISAMBIGUATE_H_
 
-#include <sys/types.h>
-
-#include <cstdint>
 #include <list>
 #include <map>
-#include <memory>
 #include <set>
 #include <utility>
 #include <vector>
 
-#include <fst/log.h>
 #include <fst/arcsort.h>
-#include <fst/cc-visitors.h>
-#include <fst/compose-filter.h>
 #include <fst/compose.h>
 #include <fst/connect.h>
 #include <fst/determinize.h>
 #include <fst/dfs-visit.h>
-#include <fst/expanded-fst.h>
-#include <fst/filter-state.h>
-#include <fst/fst.h>
-#include <fst/matcher.h>
-#include <fst/mutable-fst.h>
 #include <fst/project.h>
-#include <fst/properties.h>
 #include <fst/prune.h>
 #include <fst/state-map.h>
 #include <fst/state-table.h>
 #include <fst/union-find.h>
-#include <fst/util.h>
-#include <fst/vector-fst.h>
 #include <fst/verify.h>
-#include <fst/weight.h>
+
 
 namespace fst {
 
@@ -95,30 +66,35 @@ class RelationDeterminizeFilter {
   };
 
   explicit RelationDeterminizeFilter(const Fst<Arc> &fst)
-      : fst_(fst.Copy()),
-        head_(nullptr),
-        r_(std::make_unique<Relation>()),
-        s_(kNoStateId) {}
+      : fst_(fst.Copy()), r_(new Relation()), s_(kNoStateId), head_(nullptr) {}
 
-  RelationDeterminizeFilter(const Fst<Arc> &fst, std::unique_ptr<Relation> r,
-                            std::vector<StateId> *head = nullptr)
-      : fst_(fst.Copy()), head_(head), r_(std::move(r)), s_(kNoStateId) {}
+  // Ownership of the relation is given to this class.
+  RelationDeterminizeFilter(const Fst<Arc> &fst, Relation *r)
+      : fst_(fst.Copy()), r_(r), s_(kNoStateId), head_(0) {}
+
+  // Ownership of the relation is given to this class.
+  RelationDeterminizeFilter(const Fst<Arc> &fst, Relation *r,
+                            std::vector<StateId> *head)
+      : fst_(fst.Copy()), r_(r), s_(kNoStateId), head_(head) {}
 
   // This is needed, e.g., to go into the gallic domain for transducers.
+  // Ownership of the templated filter argument is given to this class.
   template <class Filter>
-  RelationDeterminizeFilter(const Fst<Arc> &fst, std::unique_ptr<Filter> filter)
+  RelationDeterminizeFilter(const Fst<Arc> &fst, Filter *filter)
       : fst_(fst.Copy()),
-        head_(filter->GetHeadStates()),
-        r_(std::move(*filter).GetRelation()),
-        s_(kNoStateId) {}
+        r_(new Relation(filter->GetRelation())),
+        s_(kNoStateId),
+        head_(filter->GetHeadStates()) {
+    delete filter;
+  }
 
   // Copy constructor; the FST can be passed if it has been deep-copied.
   RelationDeterminizeFilter(const RelationDeterminizeFilter &filter,
                             const Fst<Arc> *fst = nullptr)
       : fst_(fst ? fst->Copy() : filter.fst_->Copy()),
-        head_(nullptr),
-        r_(std::make_unique<Relation>(*filter.r_)),
-        s_(kNoStateId) {}
+        r_(new Relation(*filter.r_)),
+        s_(kNoStateId),
+        head_() {}
 
   FilterState Start() const { return FilterState(fst_->Start()); }
 
@@ -145,11 +121,11 @@ class RelationDeterminizeFilter {
     return is_final_ ? final_weight : Weight::Zero();
   }
 
-  static uint64_t Properties(uint64_t props) {
+  static uint64 Properties(uint64 props) {
     return props & ~(kIDeterministic | kODeterministic);
   }
 
-  std::unique_ptr<Relation> GetRelation() && { return std::move(r_); }
+  const Relation &GetRelation() { return *r_; }
 
   std::vector<StateId> *GetHeadStates() { return head_; }
 
@@ -158,12 +134,12 @@ class RelationDeterminizeFilter {
   void InitLabelMap(LabelMap *label_map) const;
 
   std::unique_ptr<Fst<Arc>> fst_;  // Input FST.
-  std::vector<StateId> *head_;     // Head state for a given state,
-                                   // owned by the Disambiguator.
   std::unique_ptr<Relation> r_;    // Relation compatible with inv. trans. fnc.
   StateId s_;                      // Current state.
   const StateTuple *tuple_;        // Current tuple.
   bool is_final_;                  // Is the current head state final?
+  std::vector<StateId> *head_;     // Head state for a given state,
+                                   // owned by the Disambiguator.
 };
 
 template <class Arc, class Relation>
@@ -175,7 +151,7 @@ bool RelationDeterminizeFilter<Arc, Relation>::FilterArc(
   // Adds element to state tuple if element state is related to tuple head.
   for (auto liter = label_map->lower_bound(arc.ilabel);
        liter != label_map->end() && liter->first == arc.ilabel; ++liter) {
-    const auto &dest_tuple = liter->second.dest_tuple;
+    auto *dest_tuple = liter->second.dest_tuple;
     const auto dest_head = dest_tuple->filter_state.GetState();
     if ((*r_)(dest_element.state_id, dest_head)) {
       dest_tuple->subset.push_front(dest_element);
@@ -198,7 +174,7 @@ void RelationDeterminizeFilter<Arc, Relation>::InitLabelMap(
     if (arc.ilabel == label && arc.nextstate == nextstate) continue;
     DeterminizeArc<StateTuple> det_arc(arc);
     det_arc.dest_tuple->filter_state = FilterState(arc.nextstate);
-    label_map->emplace(arc.ilabel, std::move(det_arc));
+    label_map->insert(std::make_pair(arc.ilabel, det_arc));
     label = arc.ilabel;
     nextstate = arc.nextstate;
   }
@@ -243,7 +219,7 @@ class Disambiguator {
              (arc1.ilabel == arc2.ilabel && arc1.nextstate < arc2.nextstate);
     }
 
-    uint64_t Properties(uint64_t props) const {
+    uint64 Properties(uint64 props) const {
       return (props & kArcSortProperties) | kILabelSorted |
              (props & kAcceptor ? kOLabelSorted : 0);
     }
@@ -291,11 +267,11 @@ class Disambiguator {
       // Ensures composition is between acceptors.
       const bool trans = ifst.Properties(kNotAcceptor, true);
       const auto *fsa =
-          trans ? new ProjectFst<Arc>(ifst, ProjectType::INPUT) : &ifst;
+          trans ? new ProjectFst<Arc>(ifst, PROJECT_INPUT) : &ifst;
       opts.state_table = new StateTable(*fsa, *fsa);
       const ComposeFst<Arc> cfst(*fsa, *fsa, opts);
       std::vector<bool> coaccess;
-      uint64_t props = 0;
+      uint64 props = 0;
       SccVisitor<Arc> scc_visitor(nullptr, nullptr, &coaccess, &props);
       DfsVisit(cfst, &scc_visitor);
       for (StateId s = 0; s < coaccess.size(); ++s) {
@@ -397,35 +373,29 @@ void Disambiguator<Arc>::PreDisambiguate(const ExpandedFst<Arc> &ifst,
   // Subset elements with states s1 and s2 (resp.) are in this relation iff they
   // there is a path from s1 to a final state that has the same label as some
   // path from s2 to a final state.
-  auto common_future = std::make_unique<CommonFuture>(ifst);
+  auto *common_future = new CommonFuture(ifst);
   DeterminizeFstOptions<Arc, CommonDivisor, Filter> nopts;
   nopts.delta = opts.delta;
   nopts.subsequential_label = opts.subsequential_label;
-  nopts.filter = new Filter(ifst, std::move(common_future), &head_);
-  // Determinization takes ownership of the filter itself.
+  nopts.filter = new Filter(ifst, common_future, &head_);
+  // The filter takes ownership of 'common_future', and determinization takes
+  // ownership of the filter itself.
   nopts.gc_limit = 0;  // Cache only the last state for fastest copy.
   if (opts.weight_threshold != Weight::Zero() ||
       opts.state_threshold != kNoStateId) {
-    if constexpr (IsPath<Weight>::value) {
-      /* TODO(riley): fails regression test; understand why
-      if (ifst.Properties(kAcceptor, true)) {
-        std::vector<Weight> idistance, odistance;
-        ShortestDistance(ifst, &idistance, true);
-        DeterminizeFst<Arc> dfst(ifst, &idistance, &odistance, nopts);
-        PruneOptions< Arc, AnyArcFilter<Arc>> popts(opts.weight_threshold,
-                                                     opts.state_threshold,
-                                                     AnyArcFilter<Arc>(),
-                                                     &odistance);
-        Prune(dfst, ofst, popts);
-        } else */
-      {
-        *ofst = DeterminizeFst<Arc>(ifst, nopts);
-        Prune(ofst, opts.weight_threshold, opts.state_threshold);
-      }
-    } else {
-      FSTERROR() << "Disambiguate: Weight must have path property to use "
-                 << "pruning options: " << Weight::Type();
-      error_ = true;
+    /* TODO(riley): fails regression test; understand why
+    if (ifst.Properties(kAcceptor, true)) {
+      std::vector<Weight> idistance, odistance;
+      ShortestDistance(ifst, &idistance, true);
+      DeterminizeFst<Arc> dfst(ifst, &idistance, &odistance, nopts);
+      PruneOptions< Arc, AnyArcFilter<Arc>> popts(opts.weight_threshold,
+                                                   opts.state_threshold,
+                                                   AnyArcFilter<Arc>(),
+                                                   &odistance);
+      Prune(dfst, ofst, popts);
+      } else */ {
+      *ofst = DeterminizeFst<Arc>(ifst, nopts);
+      Prune(ofst, opts.weight_threshold, opts.state_threshold);
     }
   } else {
     *ofst = DeterminizeFst<Arc>(ifst, nopts);
@@ -436,7 +406,7 @@ void Disambiguator<Arc>::PreDisambiguate(const ExpandedFst<Arc> &ifst,
 template <class Arc>
 void Disambiguator<Arc>::FindAmbiguities(const ExpandedFst<Arc> &fst) {
   if (fst.Start() == kNoStateId) return;
-  candidates_ = std::make_unique<ArcIdMap>(ArcIdCompare(head_));
+  candidates_.reset(new ArcIdMap(ArcIdCompare(head_)));
   const auto start_pr = std::make_pair(fst.Start(), fst.Start());
   coreachable_.insert(start_pr);
   queue_.push_back(start_pr);
@@ -477,8 +447,7 @@ void Disambiguator<Arc>::FindAmbiguousPairs(const ExpandedFst<Arc> &fst,
           if (spr.first != spr.second &&
               head_[spr.first] == head_[spr.second]) {
             if (!merge_) {
-              merge_ = std::make_unique<UnionFind<StateId>>(fst.NumStates(),
-                                                            kNoStateId);
+              merge_.reset(new UnionFind<StateId>(fst.NumStates(), kNoStateId));
               merge_->MakeAllSet(fst.NumStates());
             }
             merge_->Union(spr.first, spr.second);

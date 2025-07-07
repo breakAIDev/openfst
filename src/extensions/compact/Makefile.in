@@ -90,15 +90,13 @@ build_triplet = @build@
 host_triplet = @host@
 subdir = src/extensions/compact
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ax_python_devel.m4 \
-	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
-	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
-	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
-CONFIG_HEADER = $(top_builddir)/config.h
+CONFIG_HEADER = $(top_builddir)/config.h \
+	$(top_builddir)/src/include/fst/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
@@ -262,7 +260,9 @@ compact8_weighted_string_fst_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) \
 	$(compact8_weighted_string_fst_la_LDFLAGS) $(LDFLAGS) -o $@
-libfstcompact_la_LIBADD =
+am__DEPENDENCIES_1 =
+libfstcompact_la_DEPENDENCIES = ../../lib/libfst.la \
+	$(am__DEPENDENCIES_1)
 am_libfstcompact_la_OBJECTS = compact8_acceptor-fst.lo \
 	compact8_string-fst.lo compact8_unweighted-fst.lo \
 	compact8_unweighted_acceptor-fst.lo \
@@ -425,7 +425,7 @@ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
-LIBS = ../../lib/libfst.la -lm $(DL_LIBS)
+LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -453,7 +453,8 @@ PYTHON_CPPFLAGS = @PYTHON_CPPFLAGS@
 PYTHON_EXEC_PREFIX = @PYTHON_EXEC_PREFIX@
 PYTHON_EXTRA_LDFLAGS = @PYTHON_EXTRA_LDFLAGS@
 PYTHON_EXTRA_LIBS = @PYTHON_EXTRA_LIBS@
-PYTHON_LIBS = @PYTHON_LIBS@
+PYTHON_LDFLAGS = @PYTHON_LDFLAGS@
+PYTHON_LIB_PREFIX = @PYTHON_LIB_PREFIX@
 PYTHON_PLATFORM = @PYTHON_PLATFORM@
 PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_SITE_PKG = @PYTHON_SITE_PKG@
@@ -527,37 +528,38 @@ AM_CPPFLAGS = -I$(srcdir)/../../include $(ICU_CPPFLAGS)
 libfst_LTLIBRARIES = compact8_acceptor-fst.la compact8_string-fst.la compact8_unweighted-fst.la compact8_unweighted_acceptor-fst.la compact8_weighted_string-fst.la compact16_acceptor-fst.la compact16_string-fst.la compact16_unweighted-fst.la compact16_unweighted_acceptor-fst.la compact16_weighted_string-fst.la compact64_acceptor-fst.la compact64_string-fst.la compact64_unweighted-fst.la compact64_unweighted_acceptor-fst.la compact64_weighted_string-fst.la
 lib_LTLIBRARIES = libfstcompact.la
 libfstcompact_la_SOURCES = compact8_acceptor-fst.cc compact8_string-fst.cc compact8_unweighted-fst.cc compact8_unweighted_acceptor-fst.cc compact8_weighted_string-fst.cc compact16_acceptor-fst.cc compact16_string-fst.cc compact16_unweighted-fst.cc compact16_unweighted_acceptor-fst.cc compact16_weighted_string-fst.cc compact64_acceptor-fst.cc compact64_string-fst.cc compact64_unweighted-fst.cc compact64_unweighted_acceptor-fst.cc compact64_weighted_string-fst.cc
-libfstcompact_la_LDFLAGS = -version-info 26:0:0
+libfstcompact_la_LDFLAGS = -version-info 16:0:0
+libfstcompact_la_LIBADD = ../../lib/libfst.la -lm $(DL_LIBS)
 compact8_acceptor_fst_la_SOURCES = compact8_acceptor-fst.cc
-compact8_acceptor_fst_la_LDFLAGS = -avoid-version -module
+compact8_acceptor_fst_la_LDFLAGS = -module
 compact8_string_fst_la_SOURCES = compact8_string-fst.cc
-compact8_string_fst_la_LDFLAGS = -avoid-version -module
+compact8_string_fst_la_LDFLAGS = -module
 compact8_unweighted_fst_la_SOURCES = compact8_unweighted-fst.cc
-compact8_unweighted_fst_la_LDFLAGS = -avoid-version -module
+compact8_unweighted_fst_la_LDFLAGS = -module
 compact8_unweighted_acceptor_fst_la_SOURCES = compact8_unweighted_acceptor-fst.cc
-compact8_unweighted_acceptor_fst_la_LDFLAGS = -avoid-version -module
+compact8_unweighted_acceptor_fst_la_LDFLAGS = -module
 compact8_weighted_string_fst_la_SOURCES = compact8_weighted_string-fst.cc
-compact8_weighted_string_fst_la_LDFLAGS = -avoid-version -module
+compact8_weighted_string_fst_la_LDFLAGS = -module
 compact16_acceptor_fst_la_SOURCES = compact16_acceptor-fst.cc
-compact16_acceptor_fst_la_LDFLAGS = -avoid-version -module
+compact16_acceptor_fst_la_LDFLAGS = -module
 compact16_string_fst_la_SOURCES = compact16_string-fst.cc
-compact16_string_fst_la_LDFLAGS = -avoid-version -module
+compact16_string_fst_la_LDFLAGS = -module
 compact16_unweighted_fst_la_SOURCES = compact16_unweighted-fst.cc
-compact16_unweighted_fst_la_LDFLAGS = -avoid-version -module
+compact16_unweighted_fst_la_LDFLAGS = -module
 compact16_unweighted_acceptor_fst_la_SOURCES = compact16_unweighted_acceptor-fst.cc
-compact16_unweighted_acceptor_fst_la_LDFLAGS = -avoid-version -module
+compact16_unweighted_acceptor_fst_la_LDFLAGS = -module
 compact16_weighted_string_fst_la_SOURCES = compact16_weighted_string-fst.cc
-compact16_weighted_string_fst_la_LDFLAGS = -avoid-version -module
+compact16_weighted_string_fst_la_LDFLAGS = -module
 compact64_acceptor_fst_la_SOURCES = compact64_acceptor-fst.cc
-compact64_acceptor_fst_la_LDFLAGS = -avoid-version -module
+compact64_acceptor_fst_la_LDFLAGS = -module
 compact64_string_fst_la_SOURCES = compact64_string-fst.cc
-compact64_string_fst_la_LDFLAGS = -avoid-version -module
+compact64_string_fst_la_LDFLAGS = -module
 compact64_unweighted_fst_la_SOURCES = compact64_unweighted-fst.cc
-compact64_unweighted_fst_la_LDFLAGS = -avoid-version -module
+compact64_unweighted_fst_la_LDFLAGS = -module
 compact64_unweighted_acceptor_fst_la_SOURCES = compact64_unweighted_acceptor-fst.cc
-compact64_unweighted_acceptor_fst_la_LDFLAGS = -avoid-version -module
+compact64_unweighted_acceptor_fst_la_LDFLAGS = -module
 compact64_weighted_string_fst_la_SOURCES = compact64_weighted_string-fst.cc
-compact64_weighted_string_fst_la_LDFLAGS = -avoid-version -module
+compact64_weighted_string_fst_la_LDFLAGS = -module
 all: all-am
 
 .SUFFIXES:

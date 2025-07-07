@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -19,42 +5,42 @@
 // applications. Most users should use the lower-level templated versions
 // corresponding to these classes.
 
-#include <fst/script/fst-class.h>
-
-#include <ios>
-#include <iostream>
 #include <istream>
-#include <memory>
-#include <string>
 
 #include <fst/log.h>
-#include <fst/arc.h>
-#include <fstream>
-#include <fst/fst.h>
-#include <fst/properties.h>
-#include <fst/util.h>
-#include <fst/script/weight-class.h>
-#include <string_view>
+
+#include <fst/equal.h>
+#include <fst/fst-decl.h>
+#include <fst/reverse.h>
+#include <fst/union.h>
+#include <fst/script/fst-class.h>
+#include <fst/script/register.h>
 
 namespace fst {
 namespace script {
-namespace {
+
+// Registration.
+
+REGISTER_FST_CLASSES(StdArc);
+REGISTER_FST_CLASSES(LogArc);
+REGISTER_FST_CLASSES(Log64Arc);
 
 // Helper functions.
 
+namespace {
+
 template <class F>
-std::unique_ptr<F> ReadFstClass(std::istream &istrm,
-                                                const std::string &source) {
+F *ReadFstClass(std::istream &istrm, const string &fname) {
   if (!istrm) {
-    LOG(ERROR) << "ReadFstClass: Can't open file: " << source;
+    LOG(ERROR) << "ReadFstClass: Can't open file: " << fname;
     return nullptr;
   }
   FstHeader hdr;
-  if (!hdr.Read(istrm, source)) return nullptr;
-  const FstReadOptions read_options(source, &hdr);
+  if (!hdr.Read(istrm, fname)) return nullptr;
+  const FstReadOptions read_options(fname, &hdr);
   const auto &arc_type = hdr.ArcType();
-  static const auto *reg = FstClassIORegistration<F>::Register::GetRegister();
-  const auto reader = reg->GetReader(arc_type);
+  static const auto *io_register = IORegistration<F>::Register::GetRegister();
+  const auto reader = io_register->GetReader(arc_type);
   if (!reader) {
     LOG(ERROR) << "ReadFstClass: Unknown arc type: " << arc_type;
     return nullptr;
@@ -63,10 +49,10 @@ std::unique_ptr<F> ReadFstClass(std::istream &istrm,
 }
 
 template <class F>
-std::unique_ptr<FstClassImplBase> CreateFstClass(
-    std::string_view arc_type) {
-  static const auto *reg = FstClassIORegistration<F>::Register::GetRegister();
-  auto creator = reg->GetCreator(arc_type);
+FstClassImplBase *CreateFstClass(const string &arc_type) {
+  static const auto *io_register =
+      IORegistration<F>::Register::GetRegister();
+  auto creator = io_register->GetCreator(arc_type);
   if (!creator) {
     FSTERROR() << "CreateFstClass: Unknown arc type: " << arc_type;
     return nullptr;
@@ -75,10 +61,10 @@ std::unique_ptr<FstClassImplBase> CreateFstClass(
 }
 
 template <class F>
-std::unique_ptr<FstClassImplBase> ConvertFstClass(
-    const FstClass &other) {
-  static const auto *reg = FstClassIORegistration<F>::Register::GetRegister();
-  auto converter = reg->GetConverter(other.ArcType());
+FstClassImplBase *ConvertFstClass(const FstClass &other) {
+  static const auto *io_register =
+      IORegistration<F>::Register::GetRegister();
+  auto converter = io_register->GetConverter(other.ArcType());
   if (!converter) {
     FSTERROR() << "ConvertFstClass: Unknown arc type: " << other.ArcType();
     return nullptr;
@@ -88,28 +74,27 @@ std::unique_ptr<FstClassImplBase> ConvertFstClass(
 
 }  // namespace
 
+
 // FstClass methods.
 
-std::unique_ptr<FstClass> FstClass::Read(
-    const std::string &source) {
-  if (!source.empty()) {
-    std::ifstream istrm(source, std::ios_base::in | std::ios_base::binary);
-    return ReadFstClass<FstClass>(istrm, source);
+FstClass *FstClass::Read(const string &fname) {
+  if (!fname.empty()) {
+    std::ifstream istrm(fname, std::ios_base::in | std::ios_base::binary);
+    return ReadFstClass<FstClass>(istrm, fname);
   } else {
     return ReadFstClass<FstClass>(std::cin, "standard input");
   }
 }
 
-std::unique_ptr<FstClass> FstClass::Read(
-    std::istream &istrm, const std::string &source) {
+FstClass *FstClass::Read(std::istream &istrm, const string &source) {
   return ReadFstClass<FstClass>(istrm, source);
 }
 
 bool FstClass::WeightTypesMatch(const WeightClass &weight,
-                                std::string_view op_name) const {
+                                const string &op_name) const {
   if (WeightType() != weight.Type()) {
-    FSTERROR() << op_name << ": FST and weight with non-matching weight types: "
-               << WeightType() << " and " << weight.Type();
+    FSTERROR() << "FST and weight with non-matching weight types passed to "
+               << op_name << ": " << WeightType() << " and " << weight.Type();
     return false;
   }
   return true;
@@ -117,49 +102,42 @@ bool FstClass::WeightTypesMatch(const WeightClass &weight,
 
 // MutableFstClass methods.
 
-std::unique_ptr<MutableFstClass> MutableFstClass::Read(
-    const std::string &source, bool convert) {
+MutableFstClass *MutableFstClass::Read(const string &fname, bool convert) {
   if (convert == false) {
-    if (!source.empty()) {
-      std::ifstream in(source, std::ios_base::in | std::ios_base::binary);
-      return ReadFstClass<MutableFstClass>(in, source);
+    if (!fname.empty()) {
+      std::ifstream in(fname, std::ios_base::in | std::ios_base::binary);
+      return ReadFstClass<MutableFstClass>(in, fname);
     } else {
       return ReadFstClass<MutableFstClass>(std::cin, "standard input");
     }
   } else {  // Converts to VectorFstClass if not mutable.
-    std::unique_ptr<FstClass> ifst(FstClass::Read(source));
+    std::unique_ptr<FstClass> ifst(FstClass::Read(fname));
     if (!ifst) return nullptr;
     if (ifst->Properties(kMutable, false) == kMutable) {
-      return fst::WrapUnique(down_cast<MutableFstClass *>(ifst.release()));
+      return static_cast<MutableFstClass *>(ifst.release());
     } else {
-      return std::make_unique<VectorFstClass>(*ifst.release());
+      return new VectorFstClass(*ifst.release());
     }
   }
 }
 
 // VectorFstClass methods.
 
-std::unique_ptr<VectorFstClass> VectorFstClass::Read(
-    const std::string &source) {
-  if (!source.empty()) {
-    std::ifstream in(source, std::ios_base::in | std::ios_base::binary);
-    return ReadFstClass<VectorFstClass>(in, source);
+VectorFstClass *VectorFstClass::Read(const string &fname) {
+  if (!fname.empty()) {
+    std::ifstream in(fname, std::ios_base::in | std::ios_base::binary);
+    return ReadFstClass<VectorFstClass>(in, fname);
   } else {
     return ReadFstClass<VectorFstClass>(std::cin, "standard input");
   }
 }
 
-VectorFstClass::VectorFstClass(std::string_view arc_type)
+VectorFstClass::VectorFstClass(const string &arc_type)
     : MutableFstClass(CreateFstClass<VectorFstClass>(arc_type)) {}
+
 
 VectorFstClass::VectorFstClass(const FstClass &other)
     : MutableFstClass(ConvertFstClass<VectorFstClass>(other)) {}
-
-// Registration.
-
-REGISTER_FST_CLASSES(StdArc);
-REGISTER_FST_CLASSES(LogArc);
-REGISTER_FST_CLASSES(Log64Arc);
 
 }  // namespace script
 }  // namespace fst

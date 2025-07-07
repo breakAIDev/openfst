@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -20,14 +6,7 @@
 
 #include <istream>
 #include <memory>
-#include <string>
-#include <utility>
 
-#include <fst/log.h>
-#include <fst/fst.h>
-#include <fst/register.h>
-#include <fst/symbol-table.h>
-#include <fst/util.h>
 #include <fst/script/arg-packs.h>
 #include <fst/script/compile-impl.h>
 #include <fst/script/fst-class.h>
@@ -44,10 +23,10 @@ namespace script {
 // this struct is only used to pass them deeper in the call graph.
 // Be sure you understand why this is so before using this struct
 // for anything else!
-struct FstCompileInnerArgs {
+struct CompileFstInnerArgs {
   std::istream &istrm;
-  const std::string &source;
-  const std::string &fst_type;
+  const string &source;
+  const string &fst_type;
   const fst::SymbolTable *isyms;
   const fst::SymbolTable *osyms;
   const fst::SymbolTable *ssyms;
@@ -55,46 +34,63 @@ struct FstCompileInnerArgs {
   const bool ikeep;
   const bool okeep;
   const bool nkeep;
+  const bool allow_negative_labels;
+
+  CompileFstInnerArgs(std::istream &istrm, const string &source,
+                      const string &fst_type, const fst::SymbolTable *isyms,
+                      const fst::SymbolTable *osyms,
+                      const fst::SymbolTable *ssyms, bool accep, bool ikeep,
+                      bool okeep, bool nkeep,
+                      bool allow_negative_labels = false)
+      : istrm(istrm),
+        source(source),
+        fst_type(fst_type),
+        isyms(isyms),
+        osyms(osyms),
+        ssyms(ssyms),
+        accep(accep),
+        ikeep(ikeep),
+        okeep(okeep),
+        nkeep(nkeep),
+        allow_negative_labels(allow_negative_labels) {}
 };
 
-using FstCompileArgs =
-    WithReturnValue<std::unique_ptr<FstClass>, FstCompileInnerArgs>;
+using CompileFstArgs = WithReturnValue<FstClass *, CompileFstInnerArgs>;
 
 template <class Arc>
-void CompileInternal(FstCompileArgs *args) {
+void CompileFstInternal(CompileFstArgs *args) {
   using fst::Convert;
   using fst::Fst;
   using fst::FstCompiler;
   FstCompiler<Arc> fstcompiler(
       args->args.istrm, args->args.source, args->args.isyms, args->args.osyms,
       args->args.ssyms, args->args.accep, args->args.ikeep, args->args.okeep,
-      args->args.nkeep);
-  std::unique_ptr<Fst<Arc>> fst;
+      args->args.nkeep, args->args.allow_negative_labels);
+  const Fst<Arc> *fst = &fstcompiler.Fst();
+  std::unique_ptr<const Fst<Arc>> owned_fst;
   if (args->args.fst_type != "vector") {
-    std::unique_ptr<Fst<Arc>> tmp_fst(
-        Convert<Arc>(fstcompiler.Fst(), args->args.fst_type));
-    if (!tmp_fst) {
+    owned_fst.reset(Convert<Arc>(*fst, args->args.fst_type));
+    if (!owned_fst) {
       FSTERROR() << "Failed to convert FST to desired type: "
                  << args->args.fst_type;
     }
-    fst = std::move(tmp_fst);
-  } else {
-    fst = fst::WrapUnique(fstcompiler.Fst().Copy());
+    fst = owned_fst.get();
   }
-  args->retval = fst ? std::make_unique<FstClass>(std::move(fst)) : nullptr;
+  args->retval = fst ? new FstClass(*fst) : nullptr;
 }
 
-void Compile(std::istream &istrm, const std::string &source,
-             const std::string &dest, const std::string &fst_type,
-             const std::string &arc_type, const SymbolTable *isyms,
-             const SymbolTable *osyms, const SymbolTable *ssyms, bool accep,
-             bool ikeep, bool okeep, bool nkeep);
+void CompileFst(std::istream &istrm, const string &source, const string &dest,
+                const string &fst_type, const string &arc_type,
+                const SymbolTable *isyms, const SymbolTable *osyms,
+                const SymbolTable *ssyms, bool accep, bool ikeep, bool okeep,
+                bool nkeep, bool allow_negative_labels);
 
-std::unique_ptr<FstClass> CompileInternal(
-    std::istream &istrm, const std::string &source, const std::string &fst_type,
-    const std::string &arc_type, const SymbolTable *isyms,
-    const SymbolTable *osyms, const SymbolTable *ssyms, bool accep, bool ikeep,
-    bool okeep, bool nkeep);
+FstClass *CompileFstInternal(std::istream &istrm, const string &source,
+                             const string &fst_type, const string &arc_type,
+                             const SymbolTable *isyms, const SymbolTable *osyms,
+                             const SymbolTable *ssyms, bool accep, bool ikeep,
+                             bool okeep, bool nkeep,
+                             bool allow_negative_labels);
 
 }  // namespace script
 }  // namespace fst

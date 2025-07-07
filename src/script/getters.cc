@@ -1,80 +1,20 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// See www.openfst.org for extensive documentation on this weighted
-// finite-state transducer library.
-
 #include <fst/script/getters.h>
-
-#include <string>
-
-#include <fst/compose.h>
-#include <fst/determinize.h>
-#include <fst/epsnormalize.h>
-#include <fst/project.h>
-#include <fst/queue.h>
-#include <fst/rational.h>
-#include <fst/replace-util.h>
-#include <fst/reweight.h>
-#include <fst/string.h>
-#include <fst/script/arcfilter-impl.h>
-#include <fst/script/arcsort.h>
-#include <fst/script/map.h>
-#include <fst/script/script-impl.h>
-#include <string_view>
 
 namespace fst {
 namespace script {
 
-bool GetArcFilterType(std::string_view str, ArcFilterType *arc_filter_type) {
-  if (str == "any") {
-    *arc_filter_type = ArcFilterType::ANY;
-  } else if (str == "epsilon") {
-    *arc_filter_type = ArcFilterType::EPSILON;
-  } else if (str == "iepsilon") {
-    *arc_filter_type = ArcFilterType::INPUT_EPSILON;
-  } else if (str == "oepsilon") {
-    *arc_filter_type = ArcFilterType::OUTPUT_EPSILON;
-  } else {
-    return false;
-  }
-  return true;
-}
-
-bool GetArcSortType(std::string_view str, ArcSortType *sort_type) {
+bool GetArcSortType(const string &str, ArcSortType *sort_type) {
   if (str == "ilabel") {
-    *sort_type = ArcSortType::ILABEL;
+    *sort_type = ILABEL_SORT;
   } else if (str == "olabel") {
-    *sort_type = ArcSortType::OLABEL;
+    *sort_type = OLABEL_SORT;
   } else {
     return false;
   }
   return true;
 }
 
-bool GetClosureType(std::string_view str, ClosureType *closure_type) {
-  if (str == "star") {
-    *closure_type = CLOSURE_STAR;
-  } else if (str == "plus") {
-    *closure_type = CLOSURE_PLUS;
-  } else {
-    return false;
-  }
-  return true;
-}
-
-bool GetComposeFilter(std::string_view str, ComposeFilter *compose_filter) {
+bool GetComposeFilter(const string &str, ComposeFilter *compose_filter) {
   if (str == "alt_sequence") {
     *compose_filter = ALT_SEQUENCE_FILTER;
   } else if (str == "auto") {
@@ -95,7 +35,7 @@ bool GetComposeFilter(std::string_view str, ComposeFilter *compose_filter) {
   return true;
 }
 
-bool GetDeterminizeType(std::string_view str, DeterminizeType *det_type) {
+bool GetDeterminizeType(const string &str, DeterminizeType *det_type) {
   if (str == "functional") {
     *det_type = DETERMINIZE_FUNCTIONAL;
   } else if (str == "nonfunctional") {
@@ -108,80 +48,57 @@ bool GetDeterminizeType(std::string_view str, DeterminizeType *det_type) {
   return true;
 }
 
-bool GetEpsNormalizeType(std::string_view str,
-                         EpsNormalizeType *eps_norm_type) {
-  if (str == "input") {
-    *eps_norm_type = EPS_NORM_INPUT;
-  } else if (str == "output") {
-    *eps_norm_type = EPS_NORM_OUTPUT;
-  } else {
-    return false;
-  }
-  return true;
-}
-
-bool GetMapType(std::string_view str, MapType *map_type) {
+bool GetMapType(const string &str, MapType *map_type) {
   if (str == "arc_sum") {
-    *map_type = MapType::ARC_SUM;
+    *map_type = ARC_SUM_MAPPER;
   } else if (str == "arc_unique") {
-    *map_type = MapType::ARC_UNIQUE;
+    *map_type = ARC_UNIQUE_MAPPER;
   } else if (str == "identity") {
-    *map_type = MapType::IDENTITY;
+    *map_type = IDENTITY_MAPPER;
   } else if (str == "input_epsilon") {
-    *map_type = MapType::INPUT_EPSILON;
+    *map_type = INPUT_EPSILON_MAPPER;
   } else if (str == "invert") {
-    *map_type = MapType::INVERT;
+    *map_type = INVERT_MAPPER;
   } else if (str == "output_epsilon") {
-    *map_type = MapType::OUTPUT_EPSILON;
+    *map_type = OUTPUT_EPSILON_MAPPER;
   } else if (str == "plus") {
-    *map_type = MapType::PLUS;
+    *map_type = PLUS_MAPPER;
   } else if (str == "power") {
-    *map_type = MapType::POWER;
+    *map_type = POWER_MAPPER;
   } else if (str == "quantize") {
-    *map_type = MapType::QUANTIZE;
+    *map_type = QUANTIZE_MAPPER;
   } else if (str == "rmweight") {
-    *map_type = MapType::RMWEIGHT;
+    *map_type = RMWEIGHT_MAPPER;
   } else if (str == "superfinal") {
-    *map_type = MapType::SUPERFINAL;
+    *map_type = SUPERFINAL_MAPPER;
   } else if (str == "times") {
-    *map_type = MapType::TIMES;
+    *map_type = TIMES_MAPPER;
   } else if (str == "to_log") {
-    *map_type = MapType::TO_LOG;
+    *map_type = TO_LOG_MAPPER;
   } else if (str == "to_log64") {
-    *map_type = MapType::TO_LOG64;
+    *map_type = TO_LOG64_MAPPER;
   } else if (str == "to_std" || str == "to_standard") {
-    *map_type = MapType::TO_STD;
+    *map_type = TO_STD_MAPPER;
   } else {
     return false;
   }
   return true;
 }
 
-bool GetProjectType(std::string_view str, ProjectType *project_type) {
-  if (str == "input") {
-    *project_type = ProjectType::INPUT;
-  } else if (str == "output") {
-    *project_type = ProjectType::OUTPUT;
-  } else {
-    return false;
-  }
-  return true;
-}
-
-bool GetRandArcSelection(std::string_view str, RandArcSelection *ras) {
+bool GetRandArcSelection(const string &str, RandArcSelection *ras) {
   if (str == "uniform") {
-    *ras = RandArcSelection::UNIFORM;
+    *ras = UNIFORM_ARC_SELECTOR;
   } else if (str == "log_prob") {
-    *ras = RandArcSelection::LOG_PROB;
+    *ras = LOG_PROB_ARC_SELECTOR;
   } else if (str == "fast_log_prob") {
-    *ras = RandArcSelection::FAST_LOG_PROB;
+    *ras = FAST_LOG_PROB_ARC_SELECTOR;
   } else {
     return false;
   }
   return true;
 }
 
-bool GetQueueType(std::string_view str, QueueType *queue_type) {
+bool GetQueueType(const string &str, QueueType *queue_type) {
   if (str == "auto") {
     *queue_type = AUTO_QUEUE;
   } else if (str == "fifo") {
@@ -200,7 +117,7 @@ bool GetQueueType(std::string_view str, QueueType *queue_type) {
   return true;
 }
 
-bool GetReplaceLabelType(std::string_view str, bool epsilon_on_replace,
+bool GetReplaceLabelType(const string &str, bool epsilon_on_replace,
                          ReplaceLabelType *rlt) {
   if (epsilon_on_replace || str == "neither") {
     *rlt = REPLACE_LABEL_NEITHER;
@@ -210,34 +127,6 @@ bool GetReplaceLabelType(std::string_view str, bool epsilon_on_replace,
     *rlt = REPLACE_LABEL_OUTPUT;
   } else if (str == "both") {
     *rlt = REPLACE_LABEL_BOTH;
-  } else {
-    return false;
-  }
-  return true;
-}
-
-bool GetReweightType(std::string_view str, ReweightType *reweight_type) {
-  if (str == "to_initial") {
-    *reweight_type = REWEIGHT_TO_INITIAL;
-  } else if (str == "to_final") {
-    *reweight_type = REWEIGHT_TO_FINAL;
-  } else {
-    return false;
-  }
-  return true;
-}
-
-uint64_t GetSeed(uint64_t seed) {
-  return seed == kDefaultSeed ? time(nullptr) : seed;
-}
-
-bool GetTokenType(std::string_view str, TokenType *token_type) {
-  if (str == "byte") {
-    *token_type = TokenType::BYTE;
-  } else if (str == "utf8") {
-    *token_type = TokenType::UTF8;
-  } else if (str == "symbol") {
-    *token_type = TokenType::SYMBOL;
   } else {
     return false;
   }

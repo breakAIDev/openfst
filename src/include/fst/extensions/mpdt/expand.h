@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,23 +6,15 @@
 #ifndef FST_EXTENSIONS_MPDT_EXPAND_H_
 #define FST_EXTENSIONS_MPDT_EXPAND_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <utility>
 #include <vector>
 
 #include <fst/extensions/mpdt/mpdt.h>
 #include <fst/extensions/pdt/paren.h>
-#include <fst/extensions/pdt/pdt.h>
 #include <fst/cache.h>
-#include <fst/connect.h>
-#include <fst/fst.h>
-#include <fst/impl-to-fst.h>
 #include <fst/mutable-fst.h>
-#include <fst/properties.h>
 #include <fst/queue.h>
 #include <fst/state-table.h>
+#include <fst/test-properties.h>
 
 namespace fst {
 
@@ -46,7 +24,7 @@ struct MPdtExpandFstOptions : public CacheOptions {
   internal::MPdtStack<typename Arc::StateId, typename Arc::Label> *stack;
   PdtStateTable<typename Arc::StateId, typename Arc::StateId> *state_table;
 
-  explicit MPdtExpandFstOptions(
+  MPdtExpandFstOptions(
       const CacheOptions &opts = CacheOptions(), bool kp = false,
       internal::MPdtStack<typename Arc::StateId, typename Arc::Label> *s =
           nullptr,
@@ -55,7 +33,7 @@ struct MPdtExpandFstOptions : public CacheOptions {
 };
 
 // Properties for an expanded PDT.
-inline uint64_t MPdtExpandProperties(uint64_t inprops) {
+inline uint64 MPdtExpandProperties(uint64 inprops) {
   return inprops & (kAcceptor | kAcyclic | kInitialAcyclic | kUnweighted);
 }
 
@@ -140,9 +118,10 @@ class MPdtExpandFstImpl : public CacheImpl<Arc> {
     if (!HasFinal(s)) {
       const auto &tuple = state_table_->Tuple(s);
       const auto weight = fst_->Final(tuple.state_id);
-      SetFinal(s, (weight != Weight::Zero() && tuple.stack_id == 0)
-                      ? weight
-                      : Weight::Zero());
+      SetFinal(s,
+               (weight != Weight::Zero() && tuple.stack_id == 0)
+                   ? weight
+                   : Weight::Zero());
     }
     return CacheImpl<Arc>::Final(s);
   }
@@ -219,8 +198,6 @@ class MPdtExpandFstImpl : public CacheImpl<Arc> {
 // reference counting, delegating most methods to ImplToFst.
 template <class A>
 class MPdtExpandFst : public ImplToFst<internal::MPdtExpandFstImpl<A>> {
-  using Base = ImplToFst<internal::MPdtExpandFstImpl<A>>;
-
  public:
   using Arc = A;
   using Label = typename Arc::Label;
@@ -231,7 +208,7 @@ class MPdtExpandFst : public ImplToFst<internal::MPdtExpandFstImpl<A>> {
   using ParenStack = internal::MPdtStack<StackId, Label>;
   using Store = DefaultCacheStore<Arc>;
   using State = typename Store::State;
-  using typename Base::Impl;
+  using Impl = internal::MPdtExpandFstImpl<Arc>;
 
   friend class ArcIterator<MPdtExpandFst<Arc>>;
   friend class StateIterator<MPdtExpandFst<Arc>>;
@@ -239,18 +216,19 @@ class MPdtExpandFst : public ImplToFst<internal::MPdtExpandFstImpl<A>> {
   MPdtExpandFst(const Fst<Arc> &fst,
                 const std::vector<std::pair<Label, Label>> &parens,
                 const std::vector<Label> &assignments)
-      : Base(std::make_shared<Impl>(fst, parens, assignments,
-                                    MPdtExpandFstOptions<Arc>())) {}
+      : ImplToFst<Impl>(std::make_shared<Impl>(fst, parens, assignments,
+                                               MPdtExpandFstOptions<Arc>())) {}
 
   MPdtExpandFst(const Fst<Arc> &fst,
                 const std::vector<std::pair<Label, Label>> &parens,
                 const std::vector<Label> &assignments,
                 const MPdtExpandFstOptions<Arc> &opts)
-      : Base(std::make_shared<Impl>(fst, parens, assignments, opts)) {}
+      : ImplToFst<Impl>(
+            std::make_shared<Impl>(fst, parens, assignments, opts)) {}
 
   // See Fst<>::Copy() for doc.
   MPdtExpandFst(const MPdtExpandFst<Arc> &fst, bool safe = false)
-      : Base(fst, safe) {}
+      : ImplToFst<Impl>(fst, safe) {}
 
   // Get a copy of this ExpandFst. See Fst<>::Copy() for further doc.
   MPdtExpandFst<Arc> *Copy(bool safe = false) const override {
@@ -270,8 +248,8 @@ class MPdtExpandFst : public ImplToFst<internal::MPdtExpandFstImpl<A>> {
   }
 
  private:
-  using Base::GetImpl;
-  using Base::GetMutableImpl;
+  using ImplToFst<Impl>::GetImpl;
+  using ImplToFst<Impl>::GetMutableImpl;
 
   void operator=(const MPdtExpandFst &) = delete;
 };
@@ -301,7 +279,7 @@ class ArcIterator<MPdtExpandFst<Arc>>
 template <class Arc>
 inline void MPdtExpandFst<Arc>::InitStateIterator(
     StateIteratorData<Arc> *data) const {
-  data->base = std::make_unique<StateIterator<MPdtExpandFst<Arc>>>(*this);
+  data->base = new StateIterator<MPdtExpandFst<Arc>>(*this);
 }
 
 struct MPdtExpandOptions {
@@ -321,12 +299,11 @@ struct MPdtExpandOptions {
 // The expansion enforces the parenthesis constraints. The MPDT must be
 // expandable as an FST.
 template <class Arc>
-void Expand(
-    const Fst<Arc> &ifst,
-    const std::vector<std::pair<typename Arc::Label, typename Arc::Label>>
-        &parens,
-    const std::vector<typename Arc::Label> &assignments, MutableFst<Arc> *ofst,
-    const MPdtExpandOptions &opts) {
+void Expand(const Fst<Arc> &ifst,
+            const std::vector<
+            std::pair<typename Arc::Label, typename Arc::Label>> &parens,
+            const std::vector<typename Arc::Label> &assignments,
+            MutableFst<Arc> *ofst, const MPdtExpandOptions &opts) {
   MPdtExpandFstOptions<Arc> eopts;
   eopts.gc_limit = 0;
   eopts.keep_parentheses = opts.keep_parentheses;
@@ -343,12 +320,12 @@ void Expand(
 // The expansion enforces the parenthesis constraints. The MPDT must be
 // expandable as an FST.
 template <class Arc>
-void Expand(
-    const Fst<Arc> &ifst,
-    const std::vector<std::pair<typename Arc::Label, typename Arc::Label>>
-        &parens,
-    const std::vector<typename Arc::Label> &assignments, MutableFst<Arc> *ofst,
-    bool connect = true, bool keep_parentheses = false) {
+void Expand(const Fst<Arc> &ifst,
+            const std::vector<std::pair<typename Arc::Label,
+            typename Arc::Label>> &parens,
+            const std::vector<typename Arc::Label> &assignments,
+            MutableFst<Arc> *ofst, bool connect = true,
+            bool keep_parentheses = false) {
   const MPdtExpandOptions opts(connect, keep_parentheses);
   Expand(ifst, parens, assignments, ofst, opts);
 }

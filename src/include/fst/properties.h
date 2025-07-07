@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -21,14 +7,9 @@
 #define FST_PROPERTIES_H_
 
 #include <sys/types.h>
-
-#include <cstddef>
-#include <cstdint>
 #include <vector>
 
 #include <fst/compat.h>
-#include <fst/log.h>
-#include <string_view>
 
 namespace fst {
 
@@ -43,13 +24,13 @@ namespace fst {
 // true. If it is not set, the property is false.
 
 // The Fst is an ExpandedFst.
-inline constexpr uint64_t kExpanded = 0x0000000000000001ULL;
+constexpr uint64 kExpanded = 0x0000000000000001ULL;
 
 // The Fst is a MutableFst.
-inline constexpr uint64_t kMutable = 0x0000000000000002ULL;
+constexpr uint64 kMutable = 0x0000000000000002ULL;
 
 // An error was detected while constructing/using the FST.
-inline constexpr uint64_t kError = 0x0000000000000004ULL;
+constexpr uint64 kError = 0x0000000000000004ULL;
 
 // TRINARY PROPERTIES
 //
@@ -61,106 +42,100 @@ inline constexpr uint64_t kError = 0x0000000000000004ULL;
 // positive bit at an odd and lower position.
 
 // ilabel == olabel for each arc.
-inline constexpr uint64_t kAcceptor = 0x0000000000010000ULL;
+constexpr uint64 kAcceptor = 0x0000000000010000ULL;
 // ilabel != olabel for some arc.
-inline constexpr uint64_t kNotAcceptor = 0x0000000000020000ULL;
+constexpr uint64 kNotAcceptor = 0x0000000000020000ULL;
 
 // ilabels unique leaving each state.
-inline constexpr uint64_t kIDeterministic = 0x0000000000040000ULL;
+constexpr uint64 kIDeterministic = 0x0000000000040000ULL;
 // ilabels not unique leaving some state.
-inline constexpr uint64_t kNonIDeterministic = 0x0000000000080000ULL;
+constexpr uint64 kNonIDeterministic = 0x0000000000080000ULL;
 
 // olabels unique leaving each state.
-inline constexpr uint64_t kODeterministic = 0x0000000000100000ULL;
+constexpr uint64 kODeterministic = 0x0000000000100000ULL;
 // olabels not unique leaving some state.
-inline constexpr uint64_t kNonODeterministic = 0x0000000000200000ULL;
+constexpr uint64 kNonODeterministic = 0x0000000000200000ULL;
 
 // FST has input/output epsilons.
-inline constexpr uint64_t kEpsilons = 0x0000000000400000ULL;
+constexpr uint64 kEpsilons = 0x0000000000400000ULL;
 // FST has no input/output epsilons.
-inline constexpr uint64_t kNoEpsilons = 0x0000000000800000ULL;
+constexpr uint64 kNoEpsilons = 0x0000000000800000ULL;
 
 // FST has input epsilons.
-inline constexpr uint64_t kIEpsilons = 0x0000000001000000ULL;
+constexpr uint64 kIEpsilons = 0x0000000001000000ULL;
 // FST has no input epsilons.
-inline constexpr uint64_t kNoIEpsilons = 0x0000000002000000ULL;
+constexpr uint64 kNoIEpsilons = 0x0000000002000000ULL;
 
 // FST has output epsilons.
-inline constexpr uint64_t kOEpsilons = 0x0000000004000000ULL;
+constexpr uint64 kOEpsilons = 0x0000000004000000ULL;
 // FST has no output epsilons.
-inline constexpr uint64_t kNoOEpsilons = 0x0000000008000000ULL;
+constexpr uint64 kNoOEpsilons = 0x0000000008000000ULL;
 
 // ilabels sorted wrt < for each state.
-inline constexpr uint64_t kILabelSorted = 0x0000000010000000ULL;
+constexpr uint64 kILabelSorted = 0x0000000010000000ULL;
 // ilabels not sorted wrt < for some state.
-inline constexpr uint64_t kNotILabelSorted = 0x0000000020000000ULL;
+constexpr uint64 kNotILabelSorted = 0x0000000020000000ULL;
 
 // olabels sorted wrt < for each state.
-inline constexpr uint64_t kOLabelSorted = 0x0000000040000000ULL;
+constexpr uint64 kOLabelSorted = 0x0000000040000000ULL;
 // olabels not sorted wrt < for some state.
-inline constexpr uint64_t kNotOLabelSorted = 0x0000000080000000ULL;
+constexpr uint64 kNotOLabelSorted = 0x0000000080000000ULL;
 
 // Non-trivial arc or final weights.
-inline constexpr uint64_t kWeighted = 0x0000000100000000ULL;
+constexpr uint64 kWeighted = 0x0000000100000000ULL;
 // Only trivial arc and final weights.
-inline constexpr uint64_t kUnweighted = 0x0000000200000000ULL;
+constexpr uint64 kUnweighted = 0x0000000200000000ULL;
 
 // FST has cycles.
-inline constexpr uint64_t kCyclic = 0x0000000400000000ULL;
+constexpr uint64 kCyclic = 0x0000000400000000ULL;
 // FST has no cycles.
-inline constexpr uint64_t kAcyclic = 0x0000000800000000ULL;
+constexpr uint64 kAcyclic = 0x0000000800000000ULL;
 
 // FST has cycles containing the initial state.
-inline constexpr uint64_t kInitialCyclic = 0x0000001000000000ULL;
+constexpr uint64 kInitialCyclic = 0x0000001000000000ULL;
 // FST has no cycles containing the initial state.
-inline constexpr uint64_t kInitialAcyclic = 0x0000002000000000ULL;
+constexpr uint64 kInitialAcyclic = 0x0000002000000000ULL;
 
 // FST is topologically sorted.
-inline constexpr uint64_t kTopSorted = 0x0000004000000000ULL;
+constexpr uint64 kTopSorted = 0x0000004000000000ULL;
 // FST is not topologically sorted.
-inline constexpr uint64_t kNotTopSorted = 0x0000008000000000ULL;
+constexpr uint64 kNotTopSorted = 0x0000008000000000ULL;
 
 // All states reachable from the initial state.
-inline constexpr uint64_t kAccessible = 0x0000010000000000ULL;
+constexpr uint64 kAccessible = 0x0000010000000000ULL;
 // Not all states reachable from the initial state.
-inline constexpr uint64_t kNotAccessible = 0x0000020000000000ULL;
+constexpr uint64 kNotAccessible = 0x0000020000000000ULL;
 
 // All states can reach a final state.
-inline constexpr uint64_t kCoAccessible = 0x0000040000000000ULL;
+constexpr uint64 kCoAccessible = 0x0000040000000000ULL;
 // Not all states can reach a final state.
-inline constexpr uint64_t kNotCoAccessible = 0x0000080000000000ULL;
+constexpr uint64 kNotCoAccessible = 0x0000080000000000ULL;
 
 // If NumStates() > 0, then state 0 is initial, state NumStates() - 1 is final,
 // there is a transition from each non-final state i to state i + 1, and there
 // are no other transitions.
-inline constexpr uint64_t kString = 0x0000100000000000ULL;
+constexpr uint64 kString = 0x0000100000000000ULL;
 
 // Not a string FST.
-inline constexpr uint64_t kNotString = 0x0000200000000000ULL;
+constexpr uint64 kNotString = 0x0000200000000000ULL;
 
-// FST has at least one weighted cycle.
-inline constexpr uint64_t kWeightedCycles = 0x0000400000000000ULL;
+// FST has least one weighted cycle.
+constexpr uint64 kWeightedCycles = 0x0000400000000000ULL;
 
-// FST has no weighted cycles. Any cycles that may be present are unweighted.
-inline constexpr uint64_t kUnweightedCycles = 0x0000800000000000ULL;
+// Only unweighted cycles.
+constexpr uint64 kUnweightedCycles = 0x0000800000000000ULL;
 
 // COMPOSITE PROPERTIES
 
 // Properties of an empty machine.
-inline constexpr uint64_t kNullProperties =
+constexpr uint64 kNullProperties =
     kAcceptor | kIDeterministic | kODeterministic | kNoEpsilons | kNoIEpsilons |
     kNoOEpsilons | kILabelSorted | kOLabelSorted | kUnweighted | kAcyclic |
     kInitialAcyclic | kTopSorted | kAccessible | kCoAccessible | kString |
     kUnweightedCycles;
 
-// Properties of a string FST compiled into a string.
-inline constexpr uint64_t kCompiledStringProperties =
-    kAcceptor | kString | kUnweighted | kIDeterministic | kODeterministic |
-    kILabelSorted | kOLabelSorted | kAcyclic | kInitialAcyclic |
-    kUnweightedCycles | kTopSorted | kAccessible | kCoAccessible;
-
 // Properties that are preserved when an FST is copied.
-inline constexpr uint64_t kCopyProperties =
+constexpr uint64 kCopyProperties =
     kError | kAcceptor | kNotAcceptor | kIDeterministic | kNonIDeterministic |
     kODeterministic | kNonODeterministic | kEpsilons | kNoEpsilons |
     kIEpsilons | kNoIEpsilons | kOEpsilons | kNoOEpsilons | kILabelSorted |
@@ -171,7 +146,7 @@ inline constexpr uint64_t kCopyProperties =
     kUnweightedCycles;
 
 // Properties that are intrinsic to the FST.
-inline constexpr uint64_t kIntrinsicProperties =
+constexpr uint64 kIntrinsicProperties =
     kExpanded | kMutable | kAcceptor | kNotAcceptor | kIDeterministic |
     kNonIDeterministic | kODeterministic | kNonODeterministic | kEpsilons |
     kNoEpsilons | kIEpsilons | kNoIEpsilons | kOEpsilons | kNoOEpsilons |
@@ -182,10 +157,10 @@ inline constexpr uint64_t kIntrinsicProperties =
     kWeightedCycles | kUnweightedCycles;
 
 // Properties that are (potentially) extrinsic to the FST.
-inline constexpr uint64_t kExtrinsicProperties = kError;
+constexpr uint64 kExtrinsicProperties = kError;
 
 // Properties that are preserved when an FST start state is set.
-inline constexpr uint64_t kSetStartProperties =
+constexpr uint64 kSetStartProperties =
     kExpanded | kMutable | kError | kAcceptor | kNotAcceptor | kIDeterministic |
     kNonIDeterministic | kODeterministic | kNonODeterministic | kEpsilons |
     kNoEpsilons | kIEpsilons | kNoIEpsilons | kOEpsilons | kNoOEpsilons |
@@ -194,7 +169,7 @@ inline constexpr uint64_t kSetStartProperties =
     kCoAccessible | kNotCoAccessible | kWeightedCycles | kUnweightedCycles;
 
 // Properties that are preserved when an FST final weight is set.
-inline constexpr uint64_t kSetFinalProperties =
+constexpr uint64 kSetFinalProperties =
     kExpanded | kMutable | kError | kAcceptor | kNotAcceptor | kIDeterministic |
     kNonIDeterministic | kODeterministic | kNonODeterministic | kEpsilons |
     kNoEpsilons | kIEpsilons | kNoIEpsilons | kOEpsilons | kNoOEpsilons |
@@ -204,7 +179,7 @@ inline constexpr uint64_t kSetFinalProperties =
     kUnweightedCycles;
 
 // Properties that are preserved when an FST state is added.
-inline constexpr uint64_t kAddStateProperties =
+constexpr uint64 kAddStateProperties =
     kExpanded | kMutable | kError | kAcceptor | kNotAcceptor | kIDeterministic |
     kNonIDeterministic | kODeterministic | kNonODeterministic | kEpsilons |
     kNoEpsilons | kIEpsilons | kNoIEpsilons | kOEpsilons | kNoOEpsilons |
@@ -214,31 +189,31 @@ inline constexpr uint64_t kAddStateProperties =
     kNotCoAccessible | kNotString | kWeightedCycles | kUnweightedCycles;
 
 // Properties that are preserved when an FST arc is added.
-inline constexpr uint64_t kAddArcProperties =
+constexpr uint64 kAddArcProperties =
     kExpanded | kMutable | kError | kNotAcceptor | kNonIDeterministic |
     kNonODeterministic | kEpsilons | kIEpsilons | kOEpsilons |
     kNotILabelSorted | kNotOLabelSorted | kWeighted | kCyclic | kInitialCyclic |
     kNotTopSorted | kAccessible | kCoAccessible | kWeightedCycles;
 
 // Properties that are preserved when an FST arc is set.
-inline constexpr uint64_t kSetArcProperties = kExpanded | kMutable | kError;
+constexpr uint64 kSetArcProperties = kExpanded | kMutable | kError;
 
 // Properties that are preserved when FST states are deleted.
-inline constexpr uint64_t kDeleteStatesProperties =
+constexpr uint64 kDeleteStatesProperties =
     kExpanded | kMutable | kError | kAcceptor | kIDeterministic |
     kODeterministic | kNoEpsilons | kNoIEpsilons | kNoOEpsilons |
     kILabelSorted | kOLabelSorted | kUnweighted | kAcyclic | kInitialAcyclic |
     kTopSorted | kUnweightedCycles;
 
 // Properties that are preserved when FST arcs are deleted.
-inline constexpr uint64_t kDeleteArcsProperties =
+constexpr uint64 kDeleteArcsProperties =
     kExpanded | kMutable | kError | kAcceptor | kIDeterministic |
     kODeterministic | kNoEpsilons | kNoIEpsilons | kNoOEpsilons |
     kILabelSorted | kOLabelSorted | kUnweighted | kAcyclic | kInitialAcyclic |
     kTopSorted | kNotAccessible | kNotCoAccessible | kUnweightedCycles;
 
 // Properties that are preserved when an FST's states are reordered.
-inline constexpr uint64_t kStateSortProperties =
+constexpr uint64 kStateSortProperties =
     kExpanded | kMutable | kError | kAcceptor | kNotAcceptor | kIDeterministic |
     kNonIDeterministic | kODeterministic | kNonODeterministic | kEpsilons |
     kNoEpsilons | kIEpsilons | kNoIEpsilons | kOEpsilons | kNoOEpsilons |
@@ -248,7 +223,7 @@ inline constexpr uint64_t kStateSortProperties =
     kNotCoAccessible | kWeightedCycles | kUnweightedCycles;
 
 // Properties that are preserved when an FST's arcs are reordered.
-inline constexpr uint64_t kArcSortProperties =
+constexpr uint64 kArcSortProperties =
     kExpanded | kMutable | kError | kAcceptor | kNotAcceptor | kIDeterministic |
     kNonIDeterministic | kODeterministic | kNonODeterministic | kEpsilons |
     kNoEpsilons | kIEpsilons | kNoIEpsilons | kOEpsilons | kNoOEpsilons |
@@ -258,7 +233,7 @@ inline constexpr uint64_t kArcSortProperties =
     kWeightedCycles | kUnweightedCycles;
 
 // Properties that are preserved when an FST's input labels are changed.
-inline constexpr uint64_t kILabelInvariantProperties =
+constexpr uint64 kILabelInvariantProperties =
     kExpanded | kMutable | kError | kODeterministic | kNonODeterministic |
     kOEpsilons | kNoOEpsilons | kOLabelSorted | kNotOLabelSorted | kWeighted |
     kUnweighted | kCyclic | kAcyclic | kInitialCyclic | kInitialAcyclic |
@@ -267,7 +242,7 @@ inline constexpr uint64_t kILabelInvariantProperties =
     kUnweightedCycles;
 
 // Properties that are preserved when an FST's output labels are changed.
-inline constexpr uint64_t kOLabelInvariantProperties =
+constexpr uint64 kOLabelInvariantProperties =
     kExpanded | kMutable | kError | kIDeterministic | kNonIDeterministic |
     kIEpsilons | kNoIEpsilons | kILabelSorted | kNotILabelSorted | kWeighted |
     kUnweighted | kCyclic | kAcyclic | kInitialCyclic | kInitialAcyclic |
@@ -277,7 +252,7 @@ inline constexpr uint64_t kOLabelInvariantProperties =
 
 // Properties that are preserved when an FST's weights are changed. This
 // assumes that the set of states that are non-final is not changed.
-inline constexpr uint64_t kWeightInvariantProperties =
+constexpr uint64 kWeightInvariantProperties =
     kExpanded | kMutable | kError | kAcceptor | kNotAcceptor | kIDeterministic |
     kNonIDeterministic | kODeterministic | kNonODeterministic | kEpsilons |
     kNoEpsilons | kIEpsilons | kNoIEpsilons | kOEpsilons | kNoOEpsilons |
@@ -288,7 +263,7 @@ inline constexpr uint64_t kWeightInvariantProperties =
 
 // Properties that are preserved when a superfinal state is added and an FST's
 // final weights are directed to it via new transitions.
-inline constexpr uint64_t kAddSuperFinalProperties =
+constexpr uint64 kAddSuperFinalProperties =
     kExpanded | kMutable | kError | kAcceptor | kNotAcceptor |
     kNonIDeterministic | kNonODeterministic | kEpsilons | kIEpsilons |
     kOEpsilons | kNotILabelSorted | kNotOLabelSorted | kWeighted | kUnweighted |
@@ -298,7 +273,7 @@ inline constexpr uint64_t kAddSuperFinalProperties =
 
 // Properties that are preserved when a superfinal state is removed and the
 // epsilon transitions directed to it are made final weights.
-inline constexpr uint64_t kRmSuperFinalProperties =
+constexpr uint64 kRmSuperFinalProperties =
     kExpanded | kMutable | kError | kAcceptor | kNotAcceptor | kIDeterministic |
     kODeterministic | kNoEpsilons | kNoIEpsilons | kNoOEpsilons |
     kILabelSorted | kOLabelSorted | kWeighted | kUnweighted | kCyclic |
@@ -307,93 +282,89 @@ inline constexpr uint64_t kRmSuperFinalProperties =
     kUnweightedCycles;
 
 // All binary properties.
-inline constexpr uint64_t kBinaryProperties = 0x0000000000000007ULL;
+constexpr uint64 kBinaryProperties = 0x0000000000000007ULL;
 
 // All trinary properties.
-inline constexpr uint64_t kTrinaryProperties = 0x0000ffffffff0000ULL;
+constexpr uint64 kTrinaryProperties = 0x0000ffffffff0000ULL;
 
 // COMPUTED PROPERTIES
 
 // 1st bit of trinary properties.
-inline constexpr uint64_t kPosTrinaryProperties =
-    kTrinaryProperties & 0x5555555555555555ULL;
+constexpr uint64 kPosTrinaryProperties = kTrinaryProperties &
+    0x5555555555555555ULL;
 
 // 2nd bit of trinary properties.
-inline constexpr uint64_t kNegTrinaryProperties =
-    kTrinaryProperties & 0xaaaaaaaaaaaaaaaaULL;
+constexpr uint64 kNegTrinaryProperties = kTrinaryProperties &
+    0xaaaaaaaaaaaaaaaaULL;
 
 // All properties.
-inline constexpr uint64_t kFstProperties =
-    kBinaryProperties | kTrinaryProperties;
+constexpr uint64 kFstProperties = kBinaryProperties | kTrinaryProperties;
 
 // PROPERTY FUNCTIONS and STRING NAMES (defined in properties.cc).
 
 // Below are functions for getting property bit vectors when executing
 // mutation operations.
-inline uint64_t SetStartProperties(uint64_t inprops);
+inline uint64 SetStartProperties(uint64 inprops);
 
 template <typename Weight>
-uint64_t SetFinalProperties(uint64_t inprops, const Weight &old_weight,
-                            const Weight &new_weight);
+uint64 SetFinalProperties(uint64 inprops, const Weight &old_weight,
+                          const Weight &new_weight);
 
-inline uint64_t AddStateProperties(uint64_t inprops);
+inline uint64 AddStateProperties(uint64 inprops);
 
 template <typename A>
-uint64_t AddArcProperties(uint64_t inprops, typename A::StateId s, const A &arc,
-                          const A *prev_arc);
+uint64 AddArcProperties(uint64 inprops, typename A::StateId s, const A &arc,
+                        const A *prev_arc);
 
-inline uint64_t DeleteStatesProperties(uint64_t inprops);
+inline uint64 DeleteStatesProperties(uint64 inprops);
 
-inline uint64_t DeleteAllStatesProperties(uint64_t inprops,
-                                          uint64_t staticProps);
+inline uint64 DeleteAllStatesProperties(uint64 inprops, uint64 staticProps);
 
-inline uint64_t DeleteArcsProperties(uint64_t inprops);
+inline uint64 DeleteArcsProperties(uint64 inprops);
 
-uint64_t ClosureProperties(uint64_t inprops, bool star, bool delayed = false);
+uint64 ClosureProperties(uint64 inprops, bool star, bool delayed = false);
 
-uint64_t ComplementProperties(uint64_t inprops);
+uint64 ComplementProperties(uint64 inprops);
 
-uint64_t ComposeProperties(uint64_t inprops1, uint64_t inprops2);
+uint64 ComposeProperties(uint64 inprops1, uint64 inprops2);
 
-uint64_t ConcatProperties(uint64_t inprops1, uint64_t inprops2,
-                          bool delayed = false);
+uint64 ConcatProperties(uint64 inprops1, uint64 inprops2, bool delayed = false);
 
-uint64_t DeterminizeProperties(uint64_t inprops, bool has_subsequential_label,
-                               bool distinct_psubsequential_labels);
+uint64 DeterminizeProperties(uint64 inprops, bool has_subsequential_label,
+                             bool distinct_psubsequential_labels);
 
-uint64_t FactorWeightProperties(uint64_t inprops);
+uint64 FactorWeightProperties(uint64 inprops);
 
-uint64_t InvertProperties(uint64_t inprops);
+uint64 InvertProperties(uint64 inprops);
 
-uint64_t ProjectProperties(uint64_t inprops, bool project_input);
+uint64 ProjectProperties(uint64 inprops, bool project_input);
 
-uint64_t RandGenProperties(uint64_t inprops, bool weighted);
+uint64 RandGenProperties(uint64 inprops, bool weighted);
 
-uint64_t RelabelProperties(uint64_t inprops);
+uint64 RelabelProperties(uint64 inprops);
 
-uint64_t ReplaceProperties(const std::vector<uint64_t> &inprops, size_t root,
-                           bool epsilon_on_call, bool epsilon_on_return,
-                           bool out_epsilon_on_call, bool out_epsilon_on_return,
-                           bool replace_transducer, bool no_empty_fst,
-                           bool all_ilabel_sorted, bool all_olabel_sorted,
-                           bool all_negative_or_dense);
+uint64 ReplaceProperties(const std::vector<uint64> &inprops, size_t root,
+                         bool epsilon_on_call, bool epsilon_on_return,
+                         bool out_epsilon_on_call, bool out_epsilon_on_return,
+                         bool replace_transducer, bool no_empty_fst,
+                         bool all_ilabel_sorted, bool all_olabel_sorted,
+                         bool all_negative_or_dense);
 
-uint64_t ReverseProperties(uint64_t inprops, bool has_superinitial);
+uint64 ReverseProperties(uint64 inprops, bool has_superinitial);
 
-uint64_t ReweightProperties(uint64_t inprops, bool added_start_epsilon);
+uint64 ReweightProperties(uint64 inprops);
 
-uint64_t RmEpsilonProperties(uint64_t inprops, bool delayed = false);
+uint64 RmEpsilonProperties(uint64 inprops, bool delayed = false);
 
-uint64_t ShortestPathProperties(uint64_t props, bool tree = false);
+uint64 ShortestPathProperties(uint64 props, bool tree = false);
 
-uint64_t SynchronizeProperties(uint64_t inprops);
+uint64 SynchronizeProperties(uint64 inprops);
 
-uint64_t UnionProperties(uint64_t inprops1, uint64_t inprops2,
-                         bool delayed = false);
+uint64 UnionProperties(uint64 inprops1, uint64 inprops2, bool delayed = false);
 
 // Definitions of inlined functions.
 
-uint64_t SetStartProperties(uint64_t inprops) {
+uint64 SetStartProperties(uint64 inprops) {
   auto outprops = inprops & kSetStartProperties;
   if (inprops & kAcyclic) {
     outprops |= kInitialAcyclic;
@@ -401,28 +372,28 @@ uint64_t SetStartProperties(uint64_t inprops) {
   return outprops;
 }
 
-uint64_t AddStateProperties(uint64_t inprops) {
+uint64 AddStateProperties(uint64 inprops) {
   return inprops & kAddStateProperties;
 }
 
-uint64_t DeleteStatesProperties(uint64_t inprops) {
+uint64 DeleteStatesProperties(uint64 inprops) {
   return inprops & kDeleteStatesProperties;
 }
 
-uint64_t DeleteAllStatesProperties(uint64_t inprops, uint64_t staticprops) {
+uint64 DeleteAllStatesProperties(uint64 inprops, uint64 staticprops) {
   const auto outprops = inprops & kError;
   return outprops | kNullProperties | staticprops;
 }
 
-uint64_t DeleteArcsProperties(uint64_t inprops) {
+uint64 DeleteArcsProperties(uint64 inprops) {
   return inprops & kDeleteArcsProperties;
 }
 
 // Definitions of template functions.
 
 template <typename Weight>
-uint64_t SetFinalProperties(uint64_t inprops, const Weight &old_weight,
-                            const Weight &new_weight) {
+uint64 SetFinalProperties(uint64 inprops, const Weight &old_weight,
+                          const Weight &new_weight) {
   auto outprops = inprops;
   if (old_weight != Weight::Zero() && old_weight != Weight::One()) {
     outprops &= ~kWeighted;
@@ -443,8 +414,8 @@ uint64_t SetFinalProperties(uint64_t inprops, const Weight &old_weight,
 /// \param prev_arc the previously-added (or "last") arc of state s, or nullptr
 //                  if s currently has no arcs.
 template <typename Arc>
-uint64_t AddArcProperties(uint64_t inprops, typename Arc::StateId s,
-                          const Arc &arc, const Arc *prev_arc) {
+uint64 AddArcProperties(uint64 inprops, typename Arc::StateId s,
+                        const Arc &arc, const Arc *prev_arc) {
   using Weight = typename Arc::Weight;
   auto outprops = inprops;
   if (arc.ilabel != arc.olabel) {
@@ -490,42 +461,8 @@ uint64_t AddArcProperties(uint64_t inprops, typename Arc::StateId s,
   return outprops;
 }
 
-namespace internal {
+extern const char *PropertyNames[];
 
-extern const std::string_view PropertyNames[];
-
-// For a binary property, the bit is always returned set. For a trinary (i.e.,
-// two-bit) property, both bits are returned set iff either corresponding input
-// bit is set.
-inline uint64_t KnownProperties(uint64_t props) {
-  return kBinaryProperties | (props & kTrinaryProperties) |
-         ((props & kPosTrinaryProperties) << 1) |
-         ((props & kNegTrinaryProperties) >> 1);
-}
-
-// Tests compatibility between two sets of properties.
-inline bool CompatProperties(uint64_t props1, uint64_t props2) {
-  const auto known_props1 = KnownProperties(props1);
-  const auto known_props2 = KnownProperties(props2);
-  const auto known_props = known_props1 & known_props2;
-  const auto incompat_props = (props1 & known_props) ^ (props2 & known_props);
-  if (incompat_props) {
-    uint64_t prop = 1;
-    for (int i = 0; i < 64; ++i, prop <<= 1) {
-      if (prop & incompat_props) {
-        LOG(ERROR) << "CompatProperties: Mismatch: "
-                   << internal::PropertyNames[i]
-                   << ": props1 = " << (props1 & prop ? "true" : "false")
-                   << ", props2 = " << (props2 & prop ? "true" : "false");
-      }
-    }
-    return false;
-  } else {
-    return true;
-  }
-}
-
-}  // namespace internal
 }  // namespace fst
 
 #endif  // FST_PROPERTIES_H_

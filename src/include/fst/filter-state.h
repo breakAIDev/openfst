@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,14 +6,13 @@
 #ifndef FST_FILTER_STATE_H_
 #define FST_FILTER_STATE_H_
 
-#include <climits>
-#include <cstddef>
 #include <forward_list>
 #include <utility>
 
 #include <fst/fst-decl.h>  // For optional argument declarations
 #include <fst/fst.h>
 #include <fst/matcher.h>
+
 
 namespace fst {
 
@@ -80,6 +65,8 @@ class IntegerFilterState {
 
   T GetState() const { return state_; }
 
+  void SetState(T state) { state_ = state; }
+
  private:
   T state_;
 };
@@ -110,6 +97,8 @@ class WeightFilterState {
 
   W GetWeight() const { return weight_; }
 
+  void SetWeight(W weight) { weight_ = std::move(weight); }
+
  private:
   W weight_;
 };
@@ -119,7 +108,7 @@ class WeightFilterState {
 template <typename T>
 class ListFilterState {
  public:
-  ListFilterState() = default;
+  ListFilterState() {}
 
   explicit ListFilterState(T s) { list_.push_front(s); }
 
@@ -139,6 +128,8 @@ class ListFilterState {
 
   std::forward_list<T> *GetMutableState() { return &list_; }
 
+  void SetState(const std::forward_list<T> &state) { list_ = state; }
+
  private:
   std::forward_list<T> list_;
 };
@@ -147,13 +138,9 @@ class ListFilterState {
 template <class FS1, class FS2>
 class PairFilterState {
  public:
-  using FilterState1 = FS1;
-  using FilterState2 = FS2;
-
   PairFilterState() : fs1_(FS1::NoState()), fs2_(FS2::NoState()) {}
 
-  PairFilterState(const FilterState1 &fs1, const FilterState2 &fs2)
-      : fs1_(fs1), fs2_(fs2) {}
+  PairFilterState(const FS1 &fs1, const FS2 &fs2) : fs1_(fs1), fs2_(fs2) {}
 
   static const PairFilterState NoState() { return PairFilterState(); }
 
@@ -172,13 +159,18 @@ class PairFilterState {
     return fs1_ != fs.fs1_ || fs2_ != fs.fs2_;
   }
 
-  const FilterState1 &GetState1() const { return fs1_; }
+  const FS1 &GetState1() const { return fs1_; }
 
-  const FilterState2 &GetState2() const { return fs2_; }
+  const FS2 &GetState2() const { return fs2_; }
+
+  void SetState(const FS1 &fs1, const FS2 &fs2) {
+    fs1_ = fs1;
+    fs2_ = fs2;
+  }
 
  private:
-  FilterState1 fs1_;
-  FilterState2 fs2_;
+  FS1 fs1_;
+  FS2 fs2_;
 };
 
 // Single non-blocking filter state.

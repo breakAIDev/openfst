@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,13 +6,12 @@
 #ifndef FST_PRODUCT_WEIGHT_H_
 #define FST_PRODUCT_WEIGHT_H_
 
-#include <cstdint>
-#include <random>
 #include <string>
 #include <utility>
 
 #include <fst/pair-weight.h>
 #include <fst/weight.h>
+
 
 namespace fst {
 
@@ -37,7 +22,7 @@ class ProductWeight : public PairWeight<W1, W2> {
   using ReverseWeight =
       ProductWeight<typename W1::ReverseWeight, typename W2::ReverseWeight>;
 
-  ProductWeight() = default;
+  ProductWeight() {}
 
   explicit ProductWeight(const PairWeight<W1, W2> &weight)
       : PairWeight<W1, W2>(weight) {}
@@ -60,13 +45,13 @@ class ProductWeight : public PairWeight<W1, W2> {
     return no_weight;
   }
 
-  static const std::string &Type() {
-    static const std::string *const type =
-        new std::string(W1::Type() + "_X_" + W2::Type());
+  static const string &Type() {
+    static const string *const type =
+        new string(W1::Type() + "_X_" + W2::Type());
     return *type;
   }
 
-  static constexpr uint64_t Properties() {
+  static constexpr uint64 Properties() {
     return W1::Properties() & W2::Properties() &
            (kLeftSemiring | kRightSemiring | kCommutative | kIdempotent);
   }
@@ -102,51 +87,19 @@ inline ProductWeight<W1, W2> Divide(const ProductWeight<W1, W2> &w1,
                                Divide(w1.Value2(), w2.Value2(), typ));
 }
 
-// Specialization for product weight
-template <class W1, class W2>
-class Adder<ProductWeight<W1, W2>> {
- public:
-  using Weight = ProductWeight<W1, W2>;
-
-  Adder() = default;
-
-  explicit Adder(Weight w) : adder1_(w.Value1()), adder2_(w.Value2()) {}
-
-  Weight Add(const Weight &w) {
-    adder1_.Add(w.Value1());
-    adder2_.Add(w.Value2());
-    return Sum();
-  }
-
-  Weight Sum() const { return Weight(adder1_.Sum(), adder2_.Sum()); }
-
-  void Reset(Weight w = Weight::Zero()) {
-    adder1_.Reset(w.Value1());
-    adder2_.Reset(w.Value2());
-  }
-
- private:
-  Adder<W1> adder1_;
-  Adder<W2> adder2_;
-};
-
 // This function object generates weights by calling the underlying generators
 // for the template weight types, like all other pair weight types. This is
 // intended primarily for testing.
 template <class W1, class W2>
-class WeightGenerate<ProductWeight<W1, W2>> {
+class WeightGenerate<ProductWeight<W1, W2>> :
+    public WeightGenerate<PairWeight<W1, W2>> {
  public:
   using Weight = ProductWeight<W1, W2>;
   using Generate = WeightGenerate<PairWeight<W1, W2>>;
 
-  explicit WeightGenerate(uint64_t seed = std::random_device()(),
-                          bool allow_zero = true)
-      : generate_(seed, allow_zero) {}
+  explicit WeightGenerate(bool allow_zero = true) : Generate(allow_zero) {}
 
-  Weight operator()() const { return Weight(generate_()); }
-
- private:
-  const Generate generate_;
+  Weight operator()() const { return Weight(Generate::operator()()); }
 };
 
 }  // namespace fst

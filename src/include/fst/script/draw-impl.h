@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -21,19 +7,13 @@
 #ifndef FST_SCRIPT_DRAW_IMPL_H_
 #define FST_SCRIPT_DRAW_IMPL_H_
 
-#include <iomanip>
-#include <ios>
 #include <ostream>
 #include <sstream>
 #include <string>
 
-#include <fst/log.h>
 #include <fst/fst.h>
-#include <fst/properties.h>
-#include <fst/symbol-table.h>
 #include <fst/util.h>
 #include <fst/script/fst-class.h>
-#include <string_view>
 
 namespace fst {
 
@@ -48,15 +28,15 @@ class FstDrawer {
 
   FstDrawer(const Fst<Arc> &fst, const SymbolTable *isyms,
             const SymbolTable *osyms, const SymbolTable *ssyms, bool accep,
-            std::string_view title, float width, float height, bool portrait,
+            const string &title, float width, float height, bool portrait,
             bool vertical, float ranksep, float nodesep, int fontsize,
-            int precision, std::string_view float_format,
-            bool show_weight_one)
+            int precision, const string &float_format, bool show_weight_one)
       : fst_(fst),
         isyms_(isyms),
         osyms_(osyms),
         ssyms_(ssyms),
         accep_(accep && fst.Properties(kAcceptor, true)),
+        ostrm_(nullptr),
         title_(title),
         width_(width),
         height_(height),
@@ -70,48 +50,61 @@ class FstDrawer {
         show_weight_one_(show_weight_one) {}
 
   // Draws FST to an output buffer.
-  void Draw(std::ostream &strm, std::string_view dest) {
-    SetStreamState(strm);
-    dest_ = std::string(dest);
-    const auto start = fst_.Start();
+  void Draw(std::ostream *strm, const string &dest) {
+    ostrm_ = strm;
+    SetStreamState(ostrm_);
+    dest_ = dest;
+    StateId start = fst_.Start();
     if (start == kNoStateId) return;
-    strm << "digraph FST {\n";
+    PrintString("digraph FST {\n");
     if (vertical_) {
-      strm << "rankdir = BT;\n";
+      PrintString("rankdir = BT;\n");
     } else {
-      strm << "rankdir = LR;\n";
+      PrintString("rankdir = LR;\n");
     }
-    strm << "size = \"" << width_ << "," << height_ << "\";\n";
-    if (!title_.empty()) strm << "label = \"" + title_ + "\";\n";
-    strm << "center = 1;\n";
+    PrintString("size = \"");
+    Print(width_);
+    PrintString(",");
+    Print(height_);
+    PrintString("\";\n");
+    if (!dest_.empty()) PrintString("label = \"" + title_ + "\";\n");
+    PrintString("center = 1;\n");
     if (portrait_) {
-      strm << "orientation = Portrait;\n";
+      PrintString("orientation = Portrait;\n");
     } else {
-      strm << "orientation = Landscape;\n";
+      PrintString("orientation = Landscape;\n");
     }
-    strm << "ranksep = \"" << ranksep_ << "\";\n"
-         << "nodesep = \"" << nodesep_ << "\";\n";
+    PrintString("ranksep = \"");
+    Print(ranksep_);
+    PrintString("\";\n");
+    PrintString("nodesep = \"");
+    Print(nodesep_);
+    PrintString("\";\n");
     // Initial state first.
-    DrawState(strm, start);
+    DrawState(start);
     for (StateIterator<Fst<Arc>> siter(fst_); !siter.Done(); siter.Next()) {
       const auto s = siter.Value();
-      if (s != start) DrawState(strm, s);
+      if (s != start) DrawState(s);
     }
-    strm << "}\n";
+    PrintString("}\n");
   }
 
  private:
-  void SetStreamState(std::ostream &strm) const {
-    strm << std::setprecision(precision_);
-    if (float_format_ == "e") strm << std::scientific;
-    if (float_format_ == "f") strm << std::fixed;
+  void SetStreamState(std::ostream* strm) const {
+    strm->precision(precision_);
+    if (float_format_ == "e")
+        strm->setf(std::ios_base::scientific, std::ios_base::floatfield);
+    if (float_format_ == "f")
+        strm->setf(std::ios_base::fixed, std::ios_base::floatfield);
     // O.w. defaults to "g" per standard lib.
   }
 
-  // Escapes backslash and double quote if these occur in the string. Dot
-  // will not deal gracefully with these if they are not escaped.
-  static std::string Escape(std::string_view str) {
-    std::string ns;
+  void PrintString(const string &str) const { *ostrm_ << str; }
+
+  // Escapes backslash and double quote if these occur in the string. Dot will
+  // not deal gracefully with these if they are not escaped.
+  static string Escape(const string &str) {
+    string ns;
     for (char c : str) {
       if (c == '\\' || c == '"') ns.push_back('\\');
       ns.push_back(c);
@@ -119,7 +112,7 @@ class FstDrawer {
     return ns;
   }
 
-  std::string FormatId(StateId id, const SymbolTable *syms) const {
+  void PrintId(StateId id, const SymbolTable *syms, const char *name) const {
     if (syms) {
       auto symbol = syms->Find(id);
       if (symbol.empty()) {
@@ -129,58 +122,79 @@ class FstDrawer {
                    << ", destination = " << dest_;
         symbol = "?";
       }
-      return Escape(symbol);
+      PrintString(Escape(symbol));
     } else {
-      return std::to_string(id);
+      PrintString(std::to_string(id));
     }
   }
 
-  std::string FormatStateId(StateId s) const { return FormatId(s, ssyms_); }
+  void PrintStateId(StateId s) const { PrintId(s, ssyms_, "state ID"); }
 
-  std::string FormatILabel(Label label) const {
-    return FormatId(label, isyms_);
+  void PrintILabel(Label label) const {
+    PrintId(label, isyms_, "arc input label");
   }
 
-  std::string FormatOLabel(Label label) const {
-    return FormatId(label, osyms_);
+  void PrintOLabel(Label label) const {
+    PrintId(label, osyms_, "arc output label");
   }
 
-  std::string FormatWeight(Weight w) const {
-    std::stringstream ss;
-    SetStreamState(ss);
-    ss << w;
+  void PrintWeight(Weight w) const {
     // Weight may have double quote characters in it, so escape it.
-    return Escape(ss.str());
+    PrintString(Escape(ToString(w)));
   }
 
-  void DrawState(std::ostream &strm, StateId s) const {
-    strm << s << " [label = \"" << FormatStateId(s);
+  template <class T>
+  void Print(T t) const { *ostrm_ << t; }
+
+  template <class T>
+  string ToString(T t) const {
+    std::stringstream ss;
+    SetStreamState(&ss);
+    ss << t;
+    return ss.str();
+  }
+
+  void DrawState(StateId s) const {
+    Print(s);
+    PrintString(" [label = \"");
+    PrintStateId(s);
     const auto weight = fst_.Final(s);
     if (weight != Weight::Zero()) {
       if (show_weight_one_ || (weight != Weight::One())) {
-        strm << "/" << FormatWeight(weight);
+        PrintString("/");
+        PrintWeight(weight);
       }
-      strm << "\", shape = doublecircle,";
+      PrintString("\", shape = doublecircle,");
     } else {
-      strm << "\", shape = circle,";
+      PrintString("\", shape = circle,");
     }
     if (s == fst_.Start()) {
-      strm << " style = bold,";
+      PrintString(" style = bold,");
     } else {
-      strm << " style = solid,";
+      PrintString(" style = solid,");
     }
-    strm << " fontsize = " << fontsize_ << "]\n";
+    PrintString(" fontsize = ");
+    Print(fontsize_);
+    PrintString("]\n");
     for (ArcIterator<Fst<Arc>> aiter(fst_, s); !aiter.Done(); aiter.Next()) {
       const auto &arc = aiter.Value();
-      strm << "\t" << s << " -> " << arc.nextstate << " [label = \""
-           << FormatILabel(arc.ilabel);
+      PrintString("\t");
+      Print(s);
+      PrintString(" -> ");
+      Print(arc.nextstate);
+      PrintString(" [label = \"");
+      PrintILabel(arc.ilabel);
       if (!accep_) {
-        strm << ":" << FormatOLabel(arc.olabel);
+        PrintString(":");
+        PrintOLabel(arc.olabel);
       }
       if (show_weight_one_ || (arc.weight != Weight::One())) {
-        strm << "/" << FormatWeight(arc.weight);
+        PrintString("/");
+        PrintWeight(arc.weight);
       }
-      strm << "\", fontsize = " << fontsize_ << "];\n";
+      PrintString("\", fontsize = ");
+      Print(fontsize_);
+      PrintString("];\n");
     }
   }
 
@@ -189,9 +203,10 @@ class FstDrawer {
   const SymbolTable *osyms_;  // olabel symbol table.
   const SymbolTable *ssyms_;  // slabel symbol table.
   bool accep_;                // Print as acceptor when possible.
-  std::string dest_;          // Drawn FST destination name.
+  std::ostream *ostrm_;       // Drawn FST destination.
+  string dest_;               // Drawn FST destination name.
 
-  std::string title_;
+  string title_;
   float width_;
   float height_;
   bool portrait_;
@@ -200,7 +215,7 @@ class FstDrawer {
   float nodesep_;
   int fontsize_;
   int precision_;
-  std::string float_format_;
+  string float_format_;
   bool show_weight_one_;
 
   FstDrawer(const FstDrawer &) = delete;

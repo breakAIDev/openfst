@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,17 +6,17 @@
 //
 // The EditFst class enables non-destructive edit operations on a wrapped
 // ExpandedFst. The implementation uses copy-on-write semantics at the node
-// level: if a user has an underlying FST on which they want to perform a
+// level: if a user has an underlying fst on which he or she wants to perform a
 // relatively small number of edits (read: mutations), then this implementation
 // will copy the edited node to an internal MutableFst and perform any edits in
 // situ on that copied node. This class supports all the methods of MutableFst
 // except for DeleteStates(const std::vector<StateId> &); thus, new nodes may
 // also be
-// added, and one may add transitions from existing nodes of the wrapped FST to
+// added, and one may add transitions from existing nodes of the wrapped fst to
 // new nodes.
 //
 // N.B.: The documentation for Fst::Copy(true) says that its behavior is
-// undefined if invoked on an FST that has already been accessed. This class
+// undefined if invoked on an fst that has already been accessed.  This class
 // requires that the Fst implementation it wraps provides consistent, reliable
 // behavior when its Copy(true) method is invoked, where consistent means
 // the graph structure, graph properties and state numbering and do not change.
@@ -39,25 +25,14 @@
 #ifndef FST_EDIT_FST_H_
 #define FST_EDIT_FST_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <istream>
-#include <memory>
-#include <ostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <fst/log.h>
+
 #include <fst/cache.h>
-#include <fst/expanded-fst.h>
-#include <fst/fst.h>
-#include <fst/impl-to-fst.h>
-#include <fst/mutable-fst.h>
-#include <fst/properties.h>
-#include <fst/util.h>
-#include <fst/vector-fst.h>
-#include <unordered_map>
-#include <string_view>
+
 
 namespace fst {
 namespace internal {
@@ -65,17 +40,17 @@ namespace internal {
 // The EditFstData class is a container for all mutable data for EditFstImpl;
 // also, this class provides most of the actual implementation of what EditFst
 // does (that is, most of EditFstImpl's methods delegate to methods in this, the
-// EditFstData class). Instances of this class are reference-counted and can be
+// EditFstData class).  Instances of this class are reference-counted and can be
 // shared between otherwise independent EditFstImpl instances. This scheme
 // allows EditFstImpl to implement the thread-safe, copy-on-write semantics
 // required by Fst::Copy(true).
 //
 // template parameters:
-//   A: the type of arc to use
-//   WrappedFstT: the type of FST wrapped by the EditFst instance that
+//   A the type of arc to use
+//   WrappedFstT the type of fst wrapped by the EditFst instance that
 //     this EditFstData instance is backing
-//   MutableFstT: the type of mutable FST to use internally for edited states;
-//     crucially, MutableFstT::Copy(false) *must* yield an FST that is
+//   MutableFstT the type of mutable fst to use internally for edited states;
+//     crucially, MutableFstT::Copy(false) *must* yield an fst that is
 //     thread-safe for reading (VectorFst, for example, has this property)
 template <typename Arc, typename WrappedFstT = ExpandedFst<Arc>,
           typename MutableFstT = VectorFst<Arc>>
@@ -92,14 +67,15 @@ class EditFstData {
         edited_final_weights_(other.edited_final_weights_),
         num_new_states_(other.num_new_states_) {}
 
-  ~EditFstData() = default;
+  ~EditFstData() {}
 
-  static EditFstData *Read(std::istream &strm, const FstReadOptions &opts);
+  static EditFstData<Arc, WrappedFstT, MutableFstT> *Read(
+      std::istream &strm, const FstReadOptions &opts);
 
   bool Write(std::ostream &strm, const FstWriteOptions &opts) const {
-    // Serializes all private data members of this class.
+    // Serialize all private data members of this class.
     FstWriteOptions edits_opts(opts);
-    edits_opts.write_header = true;  // Forces writing contained header.
+    edits_opts.write_header = true;  // Force writing contained header.
     edits_.Write(strm, edits_opts);
     WriteType(strm, external_to_internal_ids_);
     WriteType(strm, edited_final_weights_);
@@ -113,13 +89,13 @@ class EditFstData {
 
   StateId NumNewStates() const { return num_new_states_; }
 
-  // Accessor methods for the FST holding edited states.
+  // accessor methods for the fst holding edited states
   StateId EditedStart() const { return edits_.Start(); }
 
   Weight Final(StateId s, const WrappedFstT *wrapped) const {
     auto final_weight_it = GetFinalWeightIterator(s);
     if (final_weight_it == NotInFinalWeightMap()) {
-      const auto it = GetEditedIdMapIterator(s);
+      auto it = GetEditedIdMapIterator(s);
       return it == NotInEditedMap() ? wrapped->Final(s)
                                     : edits_.Final(it->second);
     } else {
@@ -128,24 +104,24 @@ class EditFstData {
   }
 
   size_t NumArcs(StateId s, const WrappedFstT *wrapped) const {
-    const auto it = GetEditedIdMapIterator(s);
+    auto it = GetEditedIdMapIterator(s);
     return it == NotInEditedMap() ? wrapped->NumArcs(s)
                                   : edits_.NumArcs(it->second);
   }
 
   size_t NumInputEpsilons(StateId s, const WrappedFstT *wrapped) const {
-    const auto it = GetEditedIdMapIterator(s);
+    auto it = GetEditedIdMapIterator(s);
     return it == NotInEditedMap() ? wrapped->NumInputEpsilons(s)
                                   : edits_.NumInputEpsilons(it->second);
   }
 
   size_t NumOutputEpsilons(StateId s, const WrappedFstT *wrapped) const {
-    const auto it = GetEditedIdMapIterator(s);
+    auto it = GetEditedIdMapIterator(s);
     return it == NotInEditedMap() ? wrapped->NumOutputEpsilons(s)
                                   : edits_.NumOutputEpsilons(it->second);
   }
 
-  void SetEditedProperties(uint64_t props, uint64_t mask) {
+  void SetEditedProperties(uint64 props, uint64 mask) {
     edits_.SetProperties(props, mask);
   }
 
@@ -155,32 +131,27 @@ class EditFstData {
   void SetStart(StateId s) { edits_.SetStart(s); }
 
   // Sets the final state for this FST.
-  Weight SetFinal(StateId s, Weight weight, const WrappedFstT *wrapped) {
-    const auto old_weight = Final(s, wrapped);
-    const auto it = GetEditedIdMapIterator(s);
+  Weight SetFinal(StateId s, Weight w, const WrappedFstT *wrapped) {
+    Weight old_weight = Final(s, wrapped);
+    auto it = GetEditedIdMapIterator(s);
     // If we haven't already edited state s, don't add it to edited_ (which can
     // be expensive if s has many transitions); just use the
     // edited_final_weights_ map.
     if (it == NotInEditedMap()) {
-      edited_final_weights_[s] = weight;
+      edited_final_weights_[s] = w;
     } else {
-      edits_.SetFinal(GetEditableInternalId(s, wrapped), weight);
+      edits_.SetFinal(GetEditableInternalId(s, wrapped), w);
     }
     return old_weight;
   }
 
-  // Adds a new state to this FST.
+  // Adds a new state to this FST, initially with no arcs.
   StateId AddState(StateId curr_num_states) {
-    external_to_internal_ids_[curr_num_states] = edits_.AddState();
-    ++num_new_states_;
-    return curr_num_states;
-  }
-
-  // Adds new states to this FST.
-  void AddStates(StateId curr_num_states, size_t n) {
-    for (size_t i = 0; i < n; ++i) {
-      curr_num_states = AddState(curr_num_states);
-    }
+    StateId internal_state_id = edits_.AddState();
+    StateId external_state_id = curr_num_states;
+    external_to_internal_ids_[external_state_id] = internal_state_id;
+    num_new_states_++;
+    return external_state_id;
   }
 
   // Adds the specified arc to the specified state of this FST.
@@ -190,7 +161,7 @@ class EditFstData {
     ArcIterator<MutableFstT> arc_it(edits_, internal_id);
     const Arc *prev_arc = nullptr;
     if (num_arcs > 0) {
-      // Grabs the final arc associated with this state in edits_.
+      // grab the final arc associated with this state in edits_
       arc_it.Seek(num_arcs - 1);
       prev_arc = &(arc_it.Value());
     }
@@ -220,67 +191,67 @@ class EditFstData {
   // Provides information for the generic arc iterator.
   void InitArcIterator(StateId s, ArcIteratorData<Arc> *data,
                        const WrappedFstT *wrapped) const {
-    const auto it = GetEditedIdMapIterator(s);
-    if (it == NotInEditedMap()) {
+    auto id_map_it = GetEditedIdMapIterator(s);
+    if (id_map_it == NotInEditedMap()) {
       VLOG(3) << "EditFstData::InitArcIterator: iterating on state " << s
-              << " of original FST";
+              << " of original fst";
       wrapped->InitArcIterator(s, data);
     } else {
       VLOG(2) << "EditFstData::InitArcIterator: iterating on edited state " << s
-              << " (internal state ID: " << it->second << ")";
-      edits_.InitArcIterator(it->second, data);
+              << " (internal state id: " << id_map_it->second << ")";
+      edits_.InitArcIterator(id_map_it->second, data);
     }
   }
 
   // Provides information for the generic mutable arc iterator.
   void InitMutableArcIterator(StateId s, MutableArcIteratorData<Arc> *data,
                               const WrappedFstT *wrapped) {
-    data->base = std::make_unique<MutableArcIterator<MutableFstT>>(
+    data->base = new MutableArcIterator<MutableFstT>(
         &edits_, GetEditableInternalId(s, wrapped));
   }
 
-  // Prints out the map from external to internal state IDs (for debugging
+  // Prints out the map from external to internal state id's (for debugging
   // purposes).
   void PrintMap() {
-    for (auto it = external_to_internal_ids_.begin(); it != NotInEditedMap();
-         ++it) {
-      LOG(INFO) << "(external,internal)=(" << it->first << "," << it->second
-                << ")";
+    for (auto map_it = external_to_internal_ids_.begin();
+         map_it != NotInEditedMap(); ++map_it) {
+      LOG(INFO) << "(external,internal)=(" << map_it->first << ","
+                << map_it->second << ")";
     }
   }
 
  private:
-  // Returns the iterator of the map from external to internal state IDs
-  // of edits_ for the specified external state IDs.
+  // Returns the iterator of the map from external to internal state id's
+  // of edits_ for the specified external state id.
   typename std::unordered_map<StateId, StateId>::const_iterator
-  GetEditedIdMapIterator(StateId s) const {
+      GetEditedIdMapIterator(StateId s) const {
     return external_to_internal_ids_.find(s);
   }
 
   typename std::unordered_map<StateId, StateId>::const_iterator
-  NotInEditedMap() const {
+      NotInEditedMap() const {
     return external_to_internal_ids_.end();
   }
 
   typename std::unordered_map<StateId, Weight>::const_iterator
-  GetFinalWeightIterator(StateId s) const {
+      GetFinalWeightIterator(StateId s) const {
     return edited_final_weights_.find(s);
   }
 
   typename std::unordered_map<StateId, Weight>::const_iterator
-  NotInFinalWeightMap() const {
+      NotInFinalWeightMap() const {
     return edited_final_weights_.end();
   }
 
   // Returns the internal state ID of the specified external ID if the state has
   // already been made editable, or else copies the state from wrapped_ to
-  // edits_ and returns the state ID of the newly editable state in edits_.
+  // edits_ and returns the state id of the newly editable state in edits_.
   StateId GetEditableInternalId(StateId s, const WrappedFstT *wrapped) {
     auto id_map_it = GetEditedIdMapIterator(s);
     if (id_map_it == NotInEditedMap()) {
       StateId new_internal_id = edits_.AddState();
       VLOG(2) << "EditFstData::GetEditableInternalId: editing state " << s
-              << " of original FST; new internal state id:" << new_internal_id;
+              << " of original fst; new internal state id:" << new_internal_id;
       external_to_internal_ids_[s] = new_internal_id;
       for (ArcIterator<Fst<Arc>> arc_iterator(*wrapped, s);
            !arc_iterator.Done(); arc_iterator.Next()) {
@@ -308,11 +279,11 @@ class EditFstData {
   // appear in edits_.
   std::unordered_map<StateId, StateId> external_to_internal_ids_;
   // A mapping from external state IDs to final state weights assigned to
-  // those states. The states in this map are *only* those whose final weight
+  // those states.  The states in this map are *only* those whose final weight
   // has been modified; if any other part of the state has been modified,
   // the entire state is copied to edits_, and all modifications reside there.
   std::unordered_map<StateId, Weight> edited_final_weights_;
-  // The number of new states added to this mutable FST impl, which is <= the
+  // The number of new states added to this mutable fst impl, which is <= the
   // number of states in edits_ (since edits_ contains both edited *and* new
   // states).
   StateId num_new_states_;
@@ -323,11 +294,12 @@ template <typename A, typename WrappedFstT, typename MutableFstT>
 EditFstData<A, WrappedFstT, MutableFstT> *
 EditFstData<A, WrappedFstT, MutableFstT>::Read(std::istream &strm,
                                                const FstReadOptions &opts) {
-  auto data = fst::make_unique_for_overwrite<EditFstData>();
-  // Next read in MutabelFstT machine that stores edits
+  auto *data = new EditFstData<A, WrappedFstT, MutableFstT>();
+  // next read in MutabelFstT machine that stores edits
   FstReadOptions edits_opts(opts);
   // Contained header was written out, so read it in.
   edits_opts.header = nullptr;
+
   // Because our internal representation of edited states is a solid object
   // of type MutableFstT (defaults to VectorFst<A>) and not a pointer,
   // and because the static Read method allocates a new object on the heap,
@@ -347,25 +319,25 @@ EditFstData<A, WrappedFstT, MutableFstT>::Read(std::istream &strm,
     LOG(ERROR) << "EditFst::Read: read failed: " << opts.source;
     return nullptr;
   }
-  return data.release();
+  return data;
 }
 
 // This class enables non-destructive edit operations on a wrapped ExpandedFst.
 // The implementation uses copy-on-write semantics at the node level: if a user
-// has an underlying FST on which they want to perform a relatively small
+// has an underlying fst on which he or she wants to perform a relatively small
 // number of edits (read: mutations), then this implementation will copy the
 // edited node to an internal MutableFst and perform any edits in situ on that
 // copied node. This class supports all the methods of MutableFst except for
 // DeleteStates(const std::vector<StateId> &); thus, new nodes may also be
 // added, and
-// one may add transitions from existing nodes of the wrapped FST to new nodes.
+// one may add transitions from existing nodes of the wrapped fst to new nodes.
 //
 // template parameters:
-//   A: the type of arc to use
-//   WrappedFstT: the type of FST wrapped by the EditFst instance that
+//   A the type of arc to use
+//   WrappedFstT the type of fst wrapped by the EditFst instance that
 //     this EditFstImpl instance is backing
-//   MutableFstT: the type of mutable FST to use internally for edited states;
-//     crucially, MutableFstT::Copy(false) must yield an FST that is
+//   MutableFstT the type of mutable fst to use internally for edited states;
+//     crucially, MutableFstT::Copy(false) *must* yield an fst that is
 //     thread-safe for reading (VectorFst, for example, has this property)
 template <typename A, typename WrappedFstT = ExpandedFst<A>,
           typename MutableFstT = VectorFst<A>>
@@ -381,7 +353,7 @@ class EditFstImpl : public FstImpl<A> {
   using FstImpl<Arc>::WriteHeader;
 
   // Constructs an editable FST implementation with no states. Effectively, this
-  // initially-empty FST will in every way mimic the behavior of a
+  // initially-empty fst will in every way mimic the behavior of a
   // VectorFst---more precisely, a VectorFstImpl instance---but with slightly
   // slower performance (by a constant factor), due to the fact that
   // this class maintains a mapping between external state id's and
@@ -399,14 +371,14 @@ class EditFstImpl : public FstImpl<A> {
   // This library uses the pointer-to-implementation or "PIMPL" design pattern.
   // In particular, to make it convenient to bind an implementation class to its
   // interface, there are a pair of template "binder" classes, one for immutable
-  // and one for mutable FSTs (ImplToFst and ImplToMutableFst, respectively).
+  // and one for mutable fst's (ImplToFst and ImplToMutableFst, respectively).
   // As it happens, the API for the ImplToMutableFst<I,F> class requires that
   // the implementation class--the template parameter "I"--have a constructor
-  // taking a const Fst<A> reference. Accordingly, the constructor here must
-  // perform a down_cast to the WrappedFstT type required by EditFst and
+  // taking a const Fst<A> reference.  Accordingly, the constructor here must
+  // perform a static_cast to the WrappedFstT type required by EditFst and
   // therefore EditFstImpl.
   explicit EditFstImpl(const Fst<Arc> &wrapped)
-      : wrapped_(down_cast<WrappedFstT *>(wrapped.Copy())) {
+      : wrapped_(static_cast<WrappedFstT *>(wrapped.Copy())) {
     FstImpl<Arc>::SetType("edit");
     data_ = std::make_shared<EditFstData<Arc, WrappedFstT, MutableFstT>>();
     // have edits_ inherit all properties from wrapped_
@@ -419,7 +391,7 @@ class EditFstImpl : public FstImpl<A> {
   // the Copy() method of the Fst interface.
   EditFstImpl(const EditFstImpl &impl)
       : FstImpl<Arc>(),
-        wrapped_(down_cast<WrappedFstT *>(impl.wrapped_->Copy(true))),
+        wrapped_(static_cast<WrappedFstT *>(impl.wrapped_->Copy(true))),
         data_(impl.data_) {
     SetProperties(impl.Properties());
   }
@@ -447,7 +419,8 @@ class EditFstImpl : public FstImpl<A> {
     return wrapped_->NumStates() + data_->NumNewStates();
   }
 
-  static EditFstImpl *Read(std::istream &strm, const FstReadOptions &opts);
+  static EditFstImpl<Arc, WrappedFstT, MutableFstT> *Read(
+      std::istream &strm, const FstReadOptions &opts);
 
   bool Write(std::ostream &strm, const FstWriteOptions &opts) const {
     FstHeader hdr;
@@ -458,9 +431,9 @@ class EditFstImpl : public FstImpl<A> {
     header_opts.write_isymbols = false;
     header_opts.write_osymbols = false;
     WriteHeader(strm, header_opts, kFileVersion, &hdr);
-    // Serializes the wrapped FST to stream.
+    // First, serializes the wrapped FST to stream.
     FstWriteOptions wrapped_opts(opts);
-    // Forces writing the contained header.
+    // Forcse writing the contained header.
     wrapped_opts.write_header = true;
     wrapped_->Write(strm, wrapped_opts);
     data_->Write(strm, opts);
@@ -479,7 +452,7 @@ class EditFstImpl : public FstImpl<A> {
     SetProperties(SetStartProperties(FstImpl<Arc>::Properties()));
   }
 
-  // Sets the final state for this FST.
+  // Sets the final state for this fst.
   void SetFinal(StateId s, Weight weight) {
     MutateCheck();
     Weight old_weight = data_->SetFinal(s, weight, wrapped_.get());
@@ -487,21 +460,14 @@ class EditFstImpl : public FstImpl<A> {
         SetFinalProperties(FstImpl<Arc>::Properties(), old_weight, weight));
   }
 
-  // Adds a new state to this FST.
+  // Adds a new state to this fst, initially with no arcs.
   StateId AddState() {
     MutateCheck();
     SetProperties(AddStateProperties(FstImpl<Arc>::Properties()));
     return data_->AddState(NumStates());
   }
 
-  // Adds new states to this FST.
-  void AddStates(size_t n) {
-    MutateCheck();
-    SetProperties(AddStateProperties(FstImpl<Arc>::Properties()));
-    return data_->AddStates(NumStates(), n);
-  }
-
-  // Adds the specified arc to the specified state of this FST.
+  // Adds the specified arc to the specified state of this fst.
   void AddArc(StateId s, const Arc &arc) {
     MutateCheck();
     const auto *prev_arc = data_->AddArc(s, arc, wrapped_.get());
@@ -515,7 +481,7 @@ class EditFstImpl : public FstImpl<A> {
     SetProperties(kError, kError);
   }
 
-  // Deletes all states in this FST.
+  // Deletes all states in this fst.
   void DeleteStates();
 
   // Removes all but the first n outgoing arcs of the specified state.
@@ -557,7 +523,7 @@ class EditFstImpl : public FstImpl<A> {
 
  private:
   // Properties always true of this FST class.
-  static constexpr uint64_t kStaticProperties = kExpanded | kMutable;
+  static constexpr uint64 kStaticProperties = kExpanded | kMutable;
   // Current file format version.
   static constexpr int kFileVersion = 2;
   // Minimum file format version supported
@@ -575,16 +541,16 @@ class EditFstImpl : public FstImpl<A> {
 
   // This method ensures that any operations that alter the mutable data
   // portion of this EditFstImpl cause the data_ member to be copied when its
-  // reference count is greater than 1. Note that this method is distinct from
+  // reference count is greater than 1.  Note that this method is distinct from
   // MutableFst::Mutate, which gets invoked whenever one of the basic mutation
   // methods defined in MutableFst is invoked, such as SetInputSymbols.
   // The MutateCheck here in EditFstImpl is invoked whenever one of the
   // mutating methods specifically related to the types of edits provided
   // by EditFst is performed, such as changing an arc of an existing state
-  // of the wrapped FST via a MutableArcIterator, or adding a new state via
+  // of the wrapped fst via a MutableArcIterator, or adding a new state via
   // AddState().
   void MutateCheck() {
-    if (data_.use_count() > 1) {
+    if (!data_.unique()) {
       data_ =
           std::make_shared<EditFstData<Arc, WrappedFstT, MutableFstT>>(*data_);
     }
@@ -599,11 +565,20 @@ class EditFstImpl : public FstImpl<A> {
 };
 
 template <typename Arc, typename WrappedFstT, typename MutableFstT>
+constexpr uint64 EditFstImpl<Arc, WrappedFstT, MutableFstT>::kStaticProperties;
+
+template <typename Arc, typename WrappedFstT, typename MutableFstT>
+constexpr int EditFstImpl<Arc, WrappedFstT, MutableFstT>::kFileVersion;
+
+template <typename Arc, typename WrappedFstT, typename MutableFstT>
+constexpr int EditFstImpl<Arc, WrappedFstT, MutableFstT>::kMinFileVersion;
+
+template <typename Arc, typename WrappedFstT, typename MutableFstT>
 inline void EditFstImpl<Arc, WrappedFstT, MutableFstT>::DeleteStates() {
   data_->DeleteStates();
   // we are deleting all states, so just forget about pointer to wrapped_
   // and do what default constructor does: set wrapped_ to a new VectorFst
-  wrapped_ = std::make_unique<MutableFstT>();
+  wrapped_.reset(new MutableFstT());
   const auto new_props =
       DeleteAllStatesProperties(FstImpl<Arc>::Properties(), kStaticProperties);
   FstImpl<Arc>::SetProperties(new_props);
@@ -613,7 +588,7 @@ template <typename Arc, typename WrappedFstT, typename MutableFstT>
 EditFstImpl<Arc, WrappedFstT, MutableFstT> *
 EditFstImpl<Arc, WrappedFstT, MutableFstT>::Read(std::istream &strm,
                                                  const FstReadOptions &opts) {
-  auto impl = std::make_unique<EditFstImpl>();
+  auto *impl = new EditFstImpl();
   FstHeader hdr;
   if (!impl->ReadHeader(strm, opts, kMinFileVersion, &hdr)) return nullptr;
   impl->SetStart(hdr.Start());
@@ -623,79 +598,82 @@ EditFstImpl<Arc, WrappedFstT, MutableFstT>::Read(std::istream &strm,
   wrapped_opts.header = nullptr;
   std::unique_ptr<Fst<Arc>> wrapped_fst(Fst<Arc>::Read(strm, wrapped_opts));
   if (!wrapped_fst) return nullptr;
-  impl->wrapped_.reset(down_cast<WrappedFstT *>(wrapped_fst.release()));
+  impl->wrapped_.reset(static_cast<WrappedFstT *>(wrapped_fst.release()));
   impl->data_ = std::shared_ptr<EditFstData<Arc, WrappedFstT, MutableFstT>>(
       EditFstData<Arc, WrappedFstT, MutableFstT>::Read(strm, opts));
   if (!impl->data_) return nullptr;
-  return impl.release();
+  return impl;
 }
 
 }  // namespace internal
 
-// Concrete, editable FST. This class attaches interface to implementation.
-//
-// EditFst is thread-compatible.
+// Concrete, editable FST.  This class attaches interface to implementation.
 template <typename A, typename WrappedFstT = ExpandedFst<A>,
           typename MutableFstT = VectorFst<A>>
 class EditFst : public ImplToMutableFst<
                     internal::EditFstImpl<A, WrappedFstT, MutableFstT>> {
-  using Base =
-      ImplToMutableFst<internal::EditFstImpl<A, WrappedFstT, MutableFstT>>;
-
  public:
   using Arc = A;
   using StateId = typename Arc::StateId;
 
-  using typename Base::Impl;
+  using Impl = internal::EditFstImpl<Arc, WrappedFstT, MutableFstT>;
 
   friend class MutableArcIterator<EditFst<Arc, WrappedFstT, MutableFstT>>;
 
-  EditFst() : Base(std::make_shared<Impl>()) {}
+  EditFst() : ImplToMutableFst<Impl>(std::make_shared<Impl>()) {}
 
-  explicit EditFst(const Fst<Arc> &fst) : Base(std::make_shared<Impl>(fst)) {}
+  explicit EditFst(const Fst<Arc> &fst)
+      : ImplToMutableFst<Impl>(std::make_shared<Impl>(fst)) {}
 
   explicit EditFst(const WrappedFstT &fst)
-      : Base(std::make_shared<Impl>(fst)) {}
+      : ImplToMutableFst<Impl>(std::make_shared<Impl>(fst)) {}
 
   // See Fst<>::Copy() for doc.
-  EditFst(const EditFst &fst, bool safe = false) : Base(fst, safe) {}
+  EditFst(const EditFst<Arc, WrappedFstT, MutableFstT> &fst, bool safe = false)
+      : ImplToMutableFst<Impl>(fst, safe) {}
 
-  ~EditFst() override = default;
+  ~EditFst() override {}
 
   // Gets a copy of this EditFst. See Fst<>::Copy() for further doc.
-  EditFst *Copy(bool safe = false) const override {
-    return new EditFst(*this, safe);
+  EditFst<Arc, WrappedFstT, MutableFstT> *Copy(
+      bool safe = false) const override {
+    return new EditFst<Arc, WrappedFstT, MutableFstT>(*this, safe);
   }
 
-  EditFst &operator=(const EditFst &fst) {
+  EditFst<Arc, WrappedFstT, MutableFstT> &operator=(
+      const EditFst<Arc, WrappedFstT, MutableFstT> &fst) {
     SetImpl(fst.GetSharedImpl());
     return *this;
   }
 
-  EditFst &operator=(const Fst<Arc> &fst) override {
+  EditFst<Arc, WrappedFstT, MutableFstT> &operator=(
+      const Fst<Arc> &fst) override {
     SetImpl(std::make_shared<Impl>(fst));
     return *this;
   }
 
   // Reads an EditFst from an input stream, returning nullptr on error.
-  static EditFst *Read(std::istream &strm, const FstReadOptions &opts) {
+  static EditFst<Arc, WrappedFstT, MutableFstT> *Read(
+      std::istream &strm, const FstReadOptions &opts) {
     auto *impl = Impl::Read(strm, opts);
-    return impl ? new EditFst(std::shared_ptr<Impl>(impl)) : nullptr;
+    return impl ? new EditFst<Arc>(std::shared_ptr<Impl>(impl)) : nullptr;
   }
 
-  // Reads an EditFst from a file, returning nullptr on error. If the source
+  // Reads an EditFst from a file, returning nullptr on error. If the filename
   // argument is an empty string, it reads from standard input.
-  static EditFst *Read(std::string_view source) {
-    auto *impl = Base::Read(source);
-    return impl ? new EditFst(std::shared_ptr<Impl>(impl)) : nullptr;
+  static EditFst<Arc, WrappedFstT, MutableFstT> *Read(const string &filename) {
+    auto *impl = ImplToExpandedFst<Impl, MutableFst<Arc>>::Read(filename);
+    return impl ? new EditFst<Arc, WrappedFstT, MutableFstT>(
+                      std::shared_ptr<Impl>(impl))
+                : nullptr;
   }
 
   bool Write(std::ostream &strm, const FstWriteOptions &opts) const override {
     return GetImpl()->Write(strm, opts);
   }
 
-  bool Write(const std::string &source) const override {
-    return Fst<Arc>::WriteFile(source);
+  bool Write(const string &filename) const override {
+    return Fst<Arc>::WriteFile(filename);
   }
 
   void InitStateIterator(StateIteratorData<Arc> *data) const override {
@@ -712,11 +690,11 @@ class EditFst : public ImplToMutableFst<
   }
 
  private:
-  explicit EditFst(std::shared_ptr<Impl> impl) : Base(impl) {}
+  explicit EditFst(std::shared_ptr<Impl> impl) : ImplToMutableFst<Impl>(impl) {}
 
-  using Base::GetImpl;
-  using Base::GetMutableImpl;
-  using Base::SetImpl;
+  using ImplToFst<Impl, MutableFst<Arc>>::GetImpl;
+  using ImplToFst<Impl, MutableFst<Arc>>::GetMutableImpl;
+  using ImplToFst<Impl, MutableFst<Arc>>::SetImpl;
 };
 
 }  // namespace fst

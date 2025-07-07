@@ -93,15 +93,13 @@ host_triplet = @host@
 @HAVE_BIN_TRUE@	mpdtinfo$(EXEEXT) mpdtreverse$(EXEEXT)
 subdir = src/extensions/mpdt
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ax_python_devel.m4 \
-	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
-	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
-	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
-CONFIG_HEADER = $(top_builddir)/config.h
+CONFIG_HEADER = $(top_builddir)/config.h \
+	$(top_builddir)/src/include/fst/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(libdir)"
@@ -150,36 +148,32 @@ libfstmpdtscript_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(libfstmpdtscript_la_LDFLAGS) \
 	$(LDFLAGS) -o $@
 @HAVE_SCRIPT_TRUE@am_libfstmpdtscript_la_rpath = -rpath $(libdir)
-am__mpdtcompose_SOURCES_DIST = mpdtcompose.cc mpdtcompose-main.cc
-@HAVE_BIN_TRUE@am_mpdtcompose_OBJECTS = mpdtcompose.$(OBJEXT) \
-@HAVE_BIN_TRUE@	mpdtcompose-main.$(OBJEXT)
+am__mpdtcompose_SOURCES_DIST = mpdtcompose.cc
+@HAVE_BIN_TRUE@am_mpdtcompose_OBJECTS = mpdtcompose.$(OBJEXT)
 mpdtcompose_OBJECTS = $(am_mpdtcompose_OBJECTS)
 mpdtcompose_LDADD = $(LDADD)
 @HAVE_BIN_TRUE@mpdtcompose_DEPENDENCIES = libfstmpdtscript.la \
 @HAVE_BIN_TRUE@	../pdt/libfstpdtscript.la \
 @HAVE_BIN_TRUE@	../../script/libfstscript.la \
 @HAVE_BIN_TRUE@	../../lib/libfst.la $(am__DEPENDENCIES_1)
-am__mpdtexpand_SOURCES_DIST = mpdtexpand.cc mpdtexpand-main.cc
-@HAVE_BIN_TRUE@am_mpdtexpand_OBJECTS = mpdtexpand.$(OBJEXT) \
-@HAVE_BIN_TRUE@	mpdtexpand-main.$(OBJEXT)
+am__mpdtexpand_SOURCES_DIST = mpdtexpand.cc
+@HAVE_BIN_TRUE@am_mpdtexpand_OBJECTS = mpdtexpand.$(OBJEXT)
 mpdtexpand_OBJECTS = $(am_mpdtexpand_OBJECTS)
 mpdtexpand_LDADD = $(LDADD)
 @HAVE_BIN_TRUE@mpdtexpand_DEPENDENCIES = libfstmpdtscript.la \
 @HAVE_BIN_TRUE@	../pdt/libfstpdtscript.la \
 @HAVE_BIN_TRUE@	../../script/libfstscript.la \
 @HAVE_BIN_TRUE@	../../lib/libfst.la $(am__DEPENDENCIES_1)
-am__mpdtinfo_SOURCES_DIST = mpdtinfo.cc mpdtinfo-main.cc
-@HAVE_BIN_TRUE@am_mpdtinfo_OBJECTS = mpdtinfo.$(OBJEXT) \
-@HAVE_BIN_TRUE@	mpdtinfo-main.$(OBJEXT)
+am__mpdtinfo_SOURCES_DIST = mpdtinfo.cc
+@HAVE_BIN_TRUE@am_mpdtinfo_OBJECTS = mpdtinfo.$(OBJEXT)
 mpdtinfo_OBJECTS = $(am_mpdtinfo_OBJECTS)
 mpdtinfo_LDADD = $(LDADD)
 @HAVE_BIN_TRUE@mpdtinfo_DEPENDENCIES = libfstmpdtscript.la \
 @HAVE_BIN_TRUE@	../pdt/libfstpdtscript.la \
 @HAVE_BIN_TRUE@	../../script/libfstscript.la \
 @HAVE_BIN_TRUE@	../../lib/libfst.la $(am__DEPENDENCIES_1)
-am__mpdtreverse_SOURCES_DIST = mpdtreverse.cc mpdtreverse-main.cc
-@HAVE_BIN_TRUE@am_mpdtreverse_OBJECTS = mpdtreverse.$(OBJEXT) \
-@HAVE_BIN_TRUE@	mpdtreverse-main.$(OBJEXT)
+am__mpdtreverse_SOURCES_DIST = mpdtreverse.cc
+@HAVE_BIN_TRUE@am_mpdtreverse_OBJECTS = mpdtreverse.$(OBJEXT)
 mpdtreverse_OBJECTS = $(am_mpdtreverse_OBJECTS)
 mpdtreverse_LDADD = $(LDADD)
 @HAVE_BIN_TRUE@mpdtreverse_DEPENDENCIES = libfstmpdtscript.la \
@@ -201,10 +195,8 @@ am__v_at_1 =
 DEFAULT_INCLUDES = 
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/mpdtcompose-main.Po \
-	./$(DEPDIR)/mpdtcompose.Po ./$(DEPDIR)/mpdtexpand-main.Po \
-	./$(DEPDIR)/mpdtexpand.Po ./$(DEPDIR)/mpdtinfo-main.Po \
-	./$(DEPDIR)/mpdtinfo.Po ./$(DEPDIR)/mpdtreverse-main.Po \
+am__depfiles_remade = ./$(DEPDIR)/mpdtcompose.Po \
+	./$(DEPDIR)/mpdtexpand.Po ./$(DEPDIR)/mpdtinfo.Po \
 	./$(DEPDIR)/mpdtreverse.Po ./$(DEPDIR)/mpdtscript.Plo
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
@@ -325,7 +317,8 @@ PYTHON_CPPFLAGS = @PYTHON_CPPFLAGS@
 PYTHON_EXEC_PREFIX = @PYTHON_EXEC_PREFIX@
 PYTHON_EXTRA_LDFLAGS = @PYTHON_EXTRA_LDFLAGS@
 PYTHON_EXTRA_LIBS = @PYTHON_EXTRA_LIBS@
-PYTHON_LIBS = @PYTHON_LIBS@
+PYTHON_LDFLAGS = @PYTHON_LDFLAGS@
+PYTHON_LIB_PREFIX = @PYTHON_LIB_PREFIX@
 PYTHON_PLATFORM = @PYTHON_PLATFORM@
 PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_SITE_PKG = @PYTHON_SITE_PKG@
@@ -401,13 +394,13 @@ AM_CPPFLAGS = -I$(srcdir)/../../include $(ICU_CPPFLAGS)
 @HAVE_BIN_TRUE@    ../../script/libfstscript.la \
 @HAVE_BIN_TRUE@    ../../lib/libfst.la -lm $(DL_LIBS)
 
-@HAVE_BIN_TRUE@mpdtcompose_SOURCES = mpdtcompose.cc mpdtcompose-main.cc
-@HAVE_BIN_TRUE@mpdtexpand_SOURCES = mpdtexpand.cc mpdtexpand-main.cc
-@HAVE_BIN_TRUE@mpdtinfo_SOURCES = mpdtinfo.cc mpdtinfo-main.cc
-@HAVE_BIN_TRUE@mpdtreverse_SOURCES = mpdtreverse.cc mpdtreverse-main.cc
+@HAVE_BIN_TRUE@mpdtcompose_SOURCES = mpdtcompose.cc
+@HAVE_BIN_TRUE@mpdtexpand_SOURCES = mpdtexpand.cc
+@HAVE_BIN_TRUE@mpdtinfo_SOURCES = mpdtinfo.cc
+@HAVE_BIN_TRUE@mpdtreverse_SOURCES = mpdtreverse.cc
 @HAVE_SCRIPT_TRUE@lib_LTLIBRARIES = libfstmpdtscript.la
 @HAVE_SCRIPT_TRUE@libfstmpdtscript_la_SOURCES = mpdtscript.cc
-@HAVE_SCRIPT_TRUE@libfstmpdtscript_la_LDFLAGS = -version-info 26:0:0
+@HAVE_SCRIPT_TRUE@libfstmpdtscript_la_LDFLAGS = -version-info 16:0:0
 @HAVE_SCRIPT_TRUE@libfstmpdtscript_la_LIBADD = ../../script/libfstscript.la \
 @HAVE_SCRIPT_TRUE@                             ../../lib/libfst.la -lm $(DL_LIBS)
 
@@ -554,13 +547,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtcompose-main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtcompose.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtexpand-main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtexpand.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtinfo-main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtinfo.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtreverse-main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtreverse.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpdtscript.Plo@am__quote@ # am--include-marker
 
@@ -729,13 +718,9 @@ clean-am: clean-binPROGRAMS clean-generic clean-libLTLIBRARIES \
 	clean-libtool mostlyclean-am
 
 distclean: distclean-am
-		-rm -f ./$(DEPDIR)/mpdtcompose-main.Po
-	-rm -f ./$(DEPDIR)/mpdtcompose.Po
-	-rm -f ./$(DEPDIR)/mpdtexpand-main.Po
+		-rm -f ./$(DEPDIR)/mpdtcompose.Po
 	-rm -f ./$(DEPDIR)/mpdtexpand.Po
-	-rm -f ./$(DEPDIR)/mpdtinfo-main.Po
 	-rm -f ./$(DEPDIR)/mpdtinfo.Po
-	-rm -f ./$(DEPDIR)/mpdtreverse-main.Po
 	-rm -f ./$(DEPDIR)/mpdtreverse.Po
 	-rm -f ./$(DEPDIR)/mpdtscript.Plo
 	-rm -f Makefile
@@ -783,13 +768,9 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-		-rm -f ./$(DEPDIR)/mpdtcompose-main.Po
-	-rm -f ./$(DEPDIR)/mpdtcompose.Po
-	-rm -f ./$(DEPDIR)/mpdtexpand-main.Po
+		-rm -f ./$(DEPDIR)/mpdtcompose.Po
 	-rm -f ./$(DEPDIR)/mpdtexpand.Po
-	-rm -f ./$(DEPDIR)/mpdtinfo-main.Po
 	-rm -f ./$(DEPDIR)/mpdtinfo.Po
-	-rm -f ./$(DEPDIR)/mpdtreverse-main.Po
 	-rm -f ./$(DEPDIR)/mpdtreverse.Po
 	-rm -f ./$(DEPDIR)/mpdtscript.Plo
 	-rm -f Makefile

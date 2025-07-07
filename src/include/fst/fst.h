@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -23,16 +9,11 @@
 
 #include <sys/types.h>
 
-#include <atomic>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
-#include <ios>
+
 #include <iostream>
-#include <istream>
 #include <memory>
-#include <optional>
-#include <ostream>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -40,29 +21,32 @@
 #include <fst/compat.h>
 #include <fst/flags.h>
 #include <fst/log.h>
-#include <fst/arc.h>
 #include <fstream>
+
+#include <fst/arc.h>
 #include <fst/memory.h>
 #include <fst/properties.h>
 #include <fst/register.h>
 #include <fst/symbol-table.h>
 #include <fst/util.h>
-#include <string_view>
+
 
 DECLARE_bool(fst_align);
 
 namespace fst {
 
-// Identifies stream data as an FST (and its endianity).
-inline constexpr int32_t kFstMagicNumber = 2125659606;
+bool IsFstHeader(std::istream &, const string &);
 
 class FstHeader;
-template <class Arc>
-class MatcherBase;
-template <class Arc>
-struct ArcIteratorData;
+
 template <class Arc>
 struct StateIteratorData;
+
+template <class Arc>
+struct ArcIteratorData;
+
+template <class Arc>
+class MatcherBase;
 
 struct FstReadOptions {
   // FileReadMode(s) are advisory, there are many conditions than prevent a
@@ -70,7 +54,7 @@ struct FstReadOptions {
   // a warning indicating why it was chosen.
   enum FileReadMode { READ, MAP };
 
-  std::string source;           // Where you're reading from.
+  string source;                // Where you're reading from.
   const FstHeader *header;      // Pointer to FST header; if non-zero, use
                                 // this info (don't read a stream header).
   const SymbolTable *isymbols;  // Pointer to input symbols; if non-zero, use
@@ -81,34 +65,33 @@ struct FstReadOptions {
   bool read_isymbols;           // Read isymbols, if any (default: true).
   bool read_osymbols;           // Read osymbols, if any (default: true).
 
-  explicit FstReadOptions(
-      std::string_view source = "<unspecified>",
-      const FstHeader * header = nullptr,
-      const SymbolTable * isymbols = nullptr,
-      const SymbolTable * osymbols = nullptr);
+  explicit FstReadOptions(const string &source = "<unspecified>",
+                          const FstHeader *header = nullptr,
+                          const SymbolTable *isymbols = nullptr,
+                          const SymbolTable *osymbols = nullptr);
 
-  explicit FstReadOptions(std::string_view source, const SymbolTable *isymbols,
+  explicit FstReadOptions(const string &source, const SymbolTable *isymbols,
                           const SymbolTable *osymbols = nullptr);
 
   // Helper function to convert strings FileReadModes into their enum value.
-  static FileReadMode ReadMode(std::string_view mode);
+  static FileReadMode ReadMode(const string &mode);
 
   // Outputs a debug string for the FstReadOptions object.
-  std::string DebugString() const;
+  string DebugString() const;
 };
 
 struct FstWriteOptions {
-  std::string source;   // Where you're writing to.
+  string source;        // Where you're writing to.
   bool write_header;    // Write the header?
   bool write_isymbols;  // Write input symbols?
   bool write_osymbols;  // Write output symbols?
   bool align;           // Write data aligned (may fail on pipes)?
   bool stream_write;    // Avoid seek operations in writing.
 
-  explicit FstWriteOptions(std::string_view source = "<unspecified>",
+  explicit FstWriteOptions(const string &source = "<unspecifed>",
                            bool write_header = true, bool write_isymbols = true,
                            bool write_osymbols = true,
-                           bool align = FST_FLAGS_fst_align,
+                           bool align = FLAGS_fst_align,
                            bool stream_write = false)
       : source(source),
         write_header(write_header),
@@ -124,62 +107,64 @@ struct FstWriteOptions {
 
 class FstHeader {
  public:
-  enum Flags {
+  enum {
     HAS_ISYMBOLS = 0x1,  // Has input symbol table.
     HAS_OSYMBOLS = 0x2,  // Has output symbol table.
     IS_ALIGNED = 0x4,    // Memory-aligned (where appropriate).
-  };
+  } Flags;
 
-  FstHeader() = default;
+  FstHeader() : version_(0), flags_(0), properties_(0), start_(-1),
+      numstates_(0), numarcs_(0) {}
 
-  const std::string &FstType() const { return fsttype_; }
+  const string &FstType() const { return fsttype_; }
 
-  const std::string &ArcType() const { return arctype_; }
+  const string &ArcType() const { return arctype_; }
 
-  int32_t Version() const { return version_; }
+  int32 Version() const { return version_; }
 
-  uint32_t GetFlags() const { return flags_; }
+  int32 GetFlags() const { return flags_; }
 
-  uint64_t Properties() const { return properties_; }
+  uint64 Properties() const { return properties_; }
 
-  int64_t Start() const { return start_; }
+  int64 Start() const { return start_; }
 
-  int64_t NumStates() const { return numstates_; }
+  int64 NumStates() const { return numstates_; }
 
-  int64_t NumArcs() const { return numarcs_; }
+  int64 NumArcs() const { return numarcs_; }
 
-  void SetFstType(std::string_view type) { fsttype_ = std::string(type); }
+  void SetFstType(const string &type) { fsttype_ = type; }
 
-  void SetArcType(std::string_view type) { arctype_ = std::string(type); }
+  void SetArcType(const string &type) { arctype_ = type; }
 
-  void SetVersion(int32_t version) { version_ = version; }
+  void SetVersion(int32 version) { version_ = version; }
 
-  void SetFlags(uint32_t flags) { flags_ = flags; }
+  void SetFlags(int32 flags) { flags_ = flags; }
 
-  void SetProperties(uint64_t properties) { properties_ = properties; }
+  void SetProperties(uint64 properties) { properties_ = properties; }
 
-  void SetStart(int64_t start) { start_ = start; }
+  void SetStart(int64 start) { start_ = start; }
 
-  void SetNumStates(int64_t numstates) { numstates_ = numstates; }
+  void SetNumStates(int64 numstates) { numstates_ = numstates; }
 
-  void SetNumArcs(int64_t numarcs) { numarcs_ = numarcs; }
+  void SetNumArcs(int64 numarcs) { numarcs_ = numarcs; }
 
-  bool Read(std::istream &strm, const std::string &source, bool rewind = false);
+  bool Read(std::istream &strm, const string &source,
+            bool rewind = false);
 
-  bool Write(std::ostream &strm, std::string_view source) const;
+  bool Write(std::ostream &strm, const string &source) const;
 
   // Outputs a debug string for the FstHeader object.
-  std::string DebugString() const;
+  string DebugString() const;
 
  private:
-  std::string fsttype_;      // E.g. "vector".
-  std::string arctype_;      // E.g. "standard".
-  int32_t version_ = 0;      // Type version number.
-  uint32_t flags_ = 0;       // File format bits.
-  uint64_t properties_ = 0;  // FST property bits.
-  int64_t start_ = -1;       // Start state.
-  int64_t numstates_ = 0;    // # of states.
-  int64_t numarcs_ = 0;      // # of arcs.
+  string fsttype_;     // E.g. "vector".
+  string arctype_;     // E.g. "standard".
+  int32 version_;      // Type version number.
+  int32 flags_;        // File format bits.
+  uint64 properties_;  // FST property bits.
+  int64 start_;        // Start state.
+  int64 numstates_;    // # of states.
+  int64 numarcs_;      // # of arcs.
 };
 
 // Specifies matcher action.
@@ -191,13 +176,12 @@ enum MatchType {
   MATCH_UNKNOWN = 5
 };  // Otherwise, match type unknown.
 
-inline constexpr int kNoLabel = -1;    // Not a valid label.
-inline constexpr int kNoStateId = -1;  // Not a valid state ID.
+constexpr int kNoLabel = -1;    // Not a valid label.
+constexpr int kNoStateId = -1;  // Not a valid state ID.
 
 // A generic FST, templated on the arc definition, with common-demoninator
 // methods (use StateIterator and ArcIterator to iterate over its states and
-// arcs). Derived classes should be assumed to be thread-unsafe unless
-// otherwise specified.
+// arcs).
 template <class A>
 class Fst {
  public:
@@ -205,7 +189,7 @@ class Fst {
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
 
-  virtual ~Fst() = default;
+  virtual ~Fst() {}
 
   // Initial state.
   virtual StateId Start() const = 0;
@@ -222,19 +206,13 @@ class Fst {
   // State's output epsilon count.
   virtual size_t NumOutputEpsilons(StateId) const = 0;
 
-  // Returns the number of states if it is finite and can be computed in O(1)
-  // time.  Otherwise returns nullopt.
-  virtual std::optional<StateId> NumStatesIfKnown() const {
-    return std::nullopt;
-  }
-
   // Property bits. If test = false, return stored properties bits for mask
   // (some possibly unknown); if test = true, return property bits for mask
   // (computing o.w. unknown).
-  virtual uint64_t Properties(uint64_t mask, bool test) const = 0;
+  virtual uint64 Properties(uint64 mask, bool test) const = 0;
 
   // FST type name.
-  virtual const std::string &Type() const = 0;
+  virtual const string &Type() const = 0;
 
   // Gets a copy of this Fst. The copying behaves as follows:
   //
@@ -250,10 +228,10 @@ class Fst {
   // (3) If a MutableFst is copied and then mutated, then the original is
   // unmodified and vice versa (often by a copy-on-write on the initial
   // mutation, which may not be constant time).
-  virtual Fst *Copy(bool safe = false) const = 0;
+  virtual Fst<Arc> *Copy(bool safe = false) const = 0;
 
   // Reads an FST from an input stream; returns nullptr on error.
-  static Fst *Read(std::istream &strm, const FstReadOptions &opts) {
+  static Fst<Arc> *Read(std::istream &strm, const FstReadOptions &opts) {
     FstReadOptions ropts(opts);
     FstHeader hdr;
     if (ropts.header) {
@@ -272,17 +250,17 @@ class Fst {
     return reader(strm, ropts);
   }
 
-  // Reads an FST from a file; returns nullptr on error. An empty source
+  // Reads an FST from a file; returns nullptr on error. An empty filename
   // results in reading from standard input.
-  static Fst *Read(std::string_view source) {
-    if (!source.empty()) {
-      std::ifstream strm(std::string(source),
+  static Fst<Arc> *Read(const string &filename) {
+    if (!filename.empty()) {
+      std::ifstream strm(filename,
                               std::ios_base::in | std::ios_base::binary);
       if (!strm) {
-        LOG(ERROR) << "Fst::Read: Can't open file: " << source;
+        LOG(ERROR) << "Fst::Read: Can't open file: " << filename;
         return nullptr;
       }
-      return Read(strm, FstReadOptions(source));
+      return Read(strm, FstReadOptions(filename));
     } else {
       return Read(std::cin, FstReadOptions("standard input"));
     }
@@ -295,19 +273,13 @@ class Fst {
     return false;
   }
 
-  // Writes an FST to a file; returns false on error; an empty source
+  // Writes an FST to a file; returns false on error; an empty filename
   // results in writing to standard output.
-  virtual bool Write(const std::string &source) const {
-    LOG(ERROR) << "Fst::Write: No write source method for " << Type()
+  virtual bool Write(const string &filename) const {
+    LOG(ERROR) << "Fst::Write: No write filename method for " << Type()
                << " FST type";
     return false;
   }
-
-  // Some Fst implementations support
-  //   template <class Fst2>
-  //   static bool Fst1::WriteFst(const Fst2 &fst2, ...);
-  // which is equivalent to Fst1(fst2).Write(...), but uses less memory.
-  // WriteFst is not part of the general Fst interface.
 
   // Returns input label symbol table; return nullptr if not specified.
   virtual const SymbolTable *InputSymbols() const = 0;
@@ -328,19 +300,17 @@ class Fst {
   virtual MatcherBase<Arc> *InitMatcher(MatchType match_type) const;
 
  protected:
-  bool WriteFile(const std::string &source) const {
-    if (!source.empty()) {
-      std::ofstream strm(source,
+  bool WriteFile(const string &filename) const {
+    if (!filename.empty()) {
+      std::ofstream strm(filename,
                                std::ios_base::out | std::ios_base::binary);
       if (!strm) {
-        LOG(ERROR) << "Fst::WriteFile: Can't open file: " << source;
+        LOG(ERROR) << "Fst::Write: Can't open file: " << filename;
         return false;
       }
-      if (!Write(strm, FstWriteOptions(source))) {
-        LOG(ERROR) << "Fst::WriteFile: Write failed: " << source;
-        return false;
-      }
-      return true;
+      bool val = Write(strm, FstWriteOptions(filename));
+      if (!val) LOG(ERROR) << "Fst::Write failed: " << filename;
+      return val;
     } else {
       return Write(std::cout, FstWriteOptions("standard output"));
     }
@@ -359,7 +329,7 @@ class StateIteratorBase {
  public:
   using StateId = typename Arc::StateId;
 
-  virtual ~StateIteratorBase() = default;
+  virtual ~StateIteratorBase() {}
 
   // End of iterator?
   virtual bool Done() const = 0;
@@ -377,12 +347,12 @@ template <class Arc>
 struct StateIteratorData {
   using StateId = typename Arc::StateId;
 
-  // Specialized iterator if non-null.
-  std::unique_ptr<StateIteratorBase<Arc>> base;
+  // Specialized iterator if non-zero.
+  StateIteratorBase<Arc> *base;
   // Otherwise, the total number of states.
-  StateId nstates = 0;
+  StateId nstates;
 
-  StateIteratorData() = default;
+  StateIteratorData() : base(nullptr), nstates(0) {}
 
   StateIteratorData(const StateIteratorData &) = delete;
   StateIteratorData &operator=(const StateIteratorData &) = delete;
@@ -398,18 +368,17 @@ struct StateIteratorData {
 //     ...
 //   }
 // There is no copying of the FST.
-//
-// Specializations may exist for some FST types.
-// StateIterators are thread-unsafe unless otherwise specified.
 template <class FST>
 class StateIterator {
  public:
   using Arc = typename FST::Arc;
   using StateId = typename Arc::StateId;
 
-  explicit StateIterator(const FST &fst) {
+  explicit StateIterator(const FST &fst) : s_(0) {
     fst.InitStateIterator(&data_);
   }
+
+  ~StateIterator() { delete data_.base; }
 
   bool Done() const {
     return data_.base ? data_.base->Done() : s_ >= data_.nstates;
@@ -435,23 +404,22 @@ class StateIterator {
 
  private:
   StateIteratorData<Arc> data_;
-  StateId s_ = 0;
+  StateId s_;
 };
 
-// Flags to control the behavior on an arc iterator via SetFlags().
-// Value() gives valid ilabel.
-inline constexpr uint8_t kArcILabelValue = 0x01;
-// Value() call gives valid olabel.
-inline constexpr uint8_t kArcOLabelValue = 0x02;
-// Value() call gives valid weight.
-inline constexpr uint8_t kArcWeightValue = 0x04;
-// Value() call gives valid nextstate.
-inline constexpr uint8_t kArcNextStateValue = 0x08;
-// Arcs need not be cached.
-inline constexpr uint8_t kArcNoCache = 0x10;
-inline constexpr uint8_t kArcValueFlags =
+// Flags to control the behavior on an arc iterator.
+static constexpr uint32 kArcILabelValue =
+    0x0001;  // Value() gives valid ilabel.
+static constexpr uint32 kArcOLabelValue = 0x0002;  //  "       "     " olabel.
+static constexpr uint32 kArcWeightValue = 0x0004;  //  "       "     " weight.
+static constexpr uint32 kArcNextStateValue =
+    0x0008;                                    //  "       "     " nextstate.
+static constexpr uint32 kArcNoCache = 0x0010;  // No need to cache arcs.
+
+static constexpr uint32 kArcValueFlags =
     kArcILabelValue | kArcOLabelValue | kArcWeightValue | kArcNextStateValue;
-inline constexpr uint8_t kArcFlags = kArcValueFlags | kArcNoCache;
+
+static constexpr uint32 kArcFlags = kArcValueFlags | kArcNoCache;
 
 // Arc iterator interface, templated on the arc definition; used for arc
 // iterator specializations that are returned by the InitArcIterator FST method.
@@ -460,7 +428,7 @@ class ArcIteratorBase {
  public:
   using StateId = typename Arc::StateId;
 
-  virtual ~ArcIteratorBase() = default;
+  virtual ~ArcIteratorBase() {}
 
   // End of iterator?
   virtual bool Done() const = 0;
@@ -474,27 +442,26 @@ class ArcIteratorBase {
   virtual void Reset() = 0;
   // Advances to arbitrary arc by position.
   virtual void Seek(size_t) = 0;
-  // Returns current behavorial flags, a bitmask of kArcFlags.
-  virtual uint8_t Flags() const = 0;
-  // Sets behavorial flags, a bitmask of kArcFlags.
-  virtual void SetFlags(uint8_t, uint8_t) = 0;
+  // Returns current behavorial flags
+  virtual uint32 Flags() const = 0;
+  // Sets behavorial flags.
+  virtual void SetFlags(uint32, uint32) = 0;
 };
 
 // ArcIterator initialization data.
 template <class Arc>
 struct ArcIteratorData {
-  ArcIteratorData() = default;
+  ArcIteratorData()
+      : base(nullptr), arcs(nullptr), narcs(0), ref_count(nullptr) {}
 
   ArcIteratorData(const ArcIteratorData &) = delete;
 
   ArcIteratorData &operator=(const ArcIteratorData &) = delete;
 
-  std::unique_ptr<ArcIteratorBase<Arc>>
-      base;                   // Specialized iterator if non-null.
-  const Arc *arcs = nullptr;  // O.w. arcs pointer
-  size_t narcs = 0;           // ... and arc count.
-  int *ref_count = nullptr;   // ... and a reference count of the
-                              // `narcs`-length `arcs` array if non-null.
+  ArcIteratorBase<Arc> *base;  // Specialized iterator if non-zero.
+  const Arc *arcs;             // O.w. arcs pointer
+  size_t narcs;                // ... and arc count.
+  int *ref_count;              // ... and reference count if non-zero.
 };
 
 // Generic arc iterator, templated on the FST definition (a wrapper around a
@@ -507,23 +474,24 @@ struct ArcIteratorData {
 //     ...
 //   }
 // There is no copying of the FST.
-//
-// Specializations may exist for some FST types.
-// ArcIterators are thread-unsafe unless otherwise specified.
 template <class FST>
 class ArcIterator {
  public:
   using Arc = typename FST::Arc;
   using StateId = typename Arc::StateId;
 
-  ArcIterator(const FST &fst, StateId s) {
+  ArcIterator(const FST &fst, StateId s) : i_(0) {
     fst.InitArcIterator(s, &data_);
   }
 
-  explicit ArcIterator(const ArcIteratorData<Arc> &data) = delete;
+  explicit ArcIterator(const ArcIteratorData<Arc> &data) : data_(data), i_(0) {
+    if (data_.ref_count) ++(*data_.ref_count);
+  }
 
   ~ArcIterator() {
-    if (data_.ref_count) {
+    if (data_.base) {
+      delete data_.base;
+    } else if (data_.ref_count) {
       --(*data_.ref_count);
     }
   }
@@ -562,17 +530,21 @@ class ArcIterator {
 
   size_t Position() const { return data_.base ? data_.base->Position() : i_; }
 
-  uint8_t Flags() const {
-    return data_.base ? data_.base->Flags() : kArcValueFlags;
+  uint32 Flags() const {
+    if (data_.base) {
+      return data_.base->Flags();
+    } else {
+      return kArcValueFlags;
+    }
   }
 
-  void SetFlags(uint8_t flags, uint8_t mask) {
+  void SetFlags(uint32 flags, uint32 mask) {
     if (data_.base) data_.base->SetFlags(flags, mask);
   }
 
  private:
   ArcIteratorData<Arc> data_;
-  size_t i_ = 0;
+  size_t i_;
 };
 
 }  // namespace fst
@@ -659,102 +631,58 @@ inline size_t NumOutputEpsilons(const Fst<Arc> &fst, typename Arc::StateId s) {
 //
 // Users are discouraged, but not prohibited, from subclassing this outside the
 // FST library.
-//
-// This class is thread-compatible except for the const SetProperties
-// overload. Derived classes should be assumed to be thread-unsafe unless
-// otherwise specified. Derived-class copy constructors must produce a
-// thread-safe copy.
 template <class Arc>
 class FstImpl {
  public:
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
 
-  FstImpl() = default;
+  FstImpl() : properties_(0), type_("null") {}
 
   FstImpl(const FstImpl<Arc> &impl)
-      : properties_(impl.properties_.load(std::memory_order_relaxed)),
+      : properties_(impl.properties_),
         type_(impl.type_),
         isymbols_(impl.isymbols_ ? impl.isymbols_->Copy() : nullptr),
         osymbols_(impl.osymbols_ ? impl.osymbols_->Copy() : nullptr) {}
 
   FstImpl(FstImpl<Arc> &&impl) noexcept;
 
-  virtual ~FstImpl() = default;
+  virtual ~FstImpl() {}
 
-  FstImpl &operator=(const FstImpl &impl) {
-    properties_.store(impl.properties_.load(std::memory_order_relaxed),
-                      std::memory_order_relaxed);
+  FstImpl &operator=(const FstImpl<Arc> &impl) {
+    properties_ = impl.properties_;
     type_ = impl.type_;
-    isymbols_ =
-        fst::WrapUnique(impl.isymbols_ ? impl.isymbols_->Copy() : nullptr);
-    osymbols_ =
-        fst::WrapUnique(impl.osymbols_ ? impl.osymbols_->Copy() : nullptr);
+    isymbols_ = impl.isymbols_ ? impl.isymbols_->Copy() : nullptr;
+    osymbols_ = impl.osymbols_ ? impl.osymbols_->Copy() : nullptr;
     return *this;
   }
 
-  FstImpl &operator=(FstImpl &&impl) noexcept;
+  FstImpl &operator=(FstImpl<Arc> &&impl) noexcept;
 
-  const std::string &Type() const { return type_; }
+  const string &Type() const { return type_; }
 
-  void SetType(std::string_view type) { type_ = std::string(type); }
+  void SetType(const string &type) { type_ = type; }
 
-  virtual uint64_t Properties() const {
-    return properties_.load(std::memory_order_relaxed);
+  virtual uint64 Properties() const { return properties_; }
+
+  virtual uint64 Properties(uint64 mask) const { return properties_ & mask; }
+
+  void SetProperties(uint64 props) {
+    properties_ &= kError;  // kError can't be cleared.
+    properties_ |= props;
   }
 
-  virtual uint64_t Properties(uint64_t mask) const {
-    return properties_.load(std::memory_order_relaxed) & mask;
-  }
-
-  void SetProperties(uint64_t props) {
-    uint64_t properties = properties_.load(std::memory_order_relaxed);
-    properties &= kError;  // kError can't be cleared.
-    properties |= props;
-    properties_.store(properties, std::memory_order_relaxed);
-  }
-
-  void SetProperties(uint64_t props, uint64_t mask) {
-    // Unlike UpdateProperties, does not require compatibility between props
-    // and properties_, since it may be used to update properties after
-    // a mutation.
-    uint64_t properties = properties_.load(std::memory_order_relaxed);
-    properties &= ~mask | kError;  // kError can't be cleared.
-    properties |= props & mask;
-    properties_.store(properties, std::memory_order_relaxed);
+  void SetProperties(uint64 props, uint64 mask) {
+    properties_ &= ~mask | kError;  // kError can't be cleared.
+    properties_ |= props & mask;
   }
 
   // Allows (only) setting error bit on const FST implementations.
-  void SetProperties(uint64_t props, uint64_t mask) const {
+  void SetProperties(uint64 props, uint64 mask) const {
     if (mask != kError) {
       FSTERROR() << "FstImpl::SetProperties() const: Can only set kError";
     }
-    properties_.fetch_or(kError, std::memory_order_relaxed);
-  }
-
-  // Sets the subset of the properties that have changed, in a thread-safe
-  // manner via atomic bitwise-or..
-  void UpdateProperties(uint64_t props, uint64_t mask) {
-    // If properties_ and props are compatible (for example kAcceptor and
-    // kNoAcceptor cannot both be set), the props can be or-ed in.
-    // Compatibility is ensured if props comes from ComputeProperties
-    // and properties_ is set correctly initially. However
-    // relying on properties to be set correctly is too large an
-    // assumption, as many places set them incorrectly.
-    // Therefore, we or in only the newly discovered properties.
-    // These cannot become inconsistent, but this means that
-    // incorrectly set properties will remain incorrect.
-    const uint64_t properties = properties_.load(std::memory_order_relaxed);
-    DCHECK(internal::CompatProperties(properties, props));
-    const uint64_t old_props = properties & mask;
-    const uint64_t old_mask = internal::KnownProperties(old_props);
-    const uint64_t discovered_mask = mask & ~old_mask;
-    const uint64_t discovered_props = props & discovered_mask;
-    // It is always correct to or these bits in, but do this only when
-    // necessary to avoid extra stores and possible cache flushes.
-    if (discovered_props != 0) {
-      properties_.fetch_or(discovered_props, std::memory_order_relaxed);
-    }
+    properties_ |= kError;
   }
 
   const SymbolTable *InputSymbols() const { return isymbols_.get(); }
@@ -783,14 +711,14 @@ class FstImpl {
   // Writes header and symbols to output stream. If opts.header is false, skips
   // writing header. If opts.[io]symbols is false, skips writing those symbols.
   // This method is needed for implementations that implement Write methods.
-  void WriteHeader(std::ostream &strm, const FstWriteOptions &opts, int version,
-                   FstHeader *hdr) const {
+  void WriteHeader(std::ostream &strm, const FstWriteOptions &opts,
+                   int version, FstHeader *hdr) const {
     if (opts.write_header) {
       hdr->SetFstType(type_);
       hdr->SetArcType(Arc::Type());
       hdr->SetVersion(version);
-      hdr->SetProperties(properties_.load(std::memory_order_relaxed));
-      int32_t file_flags = 0;
+      hdr->SetProperties(properties_);
+      int32 file_flags = 0;
       if (isymbols_ && opts.write_isymbols) {
         file_flags |= FstHeader::HAS_ISYMBOLS;
       }
@@ -811,14 +739,14 @@ class FstImpl {
   // cross-type serialization methods Fst::WriteFst.
   static void WriteFstHeader(const Fst<Arc> &fst, std::ostream &strm,
                              const FstWriteOptions &opts, int version,
-                             std::string_view type, uint64_t properties,
+                             const string &type, uint64 properties,
                              FstHeader *hdr) {
     if (opts.write_header) {
       hdr->SetFstType(type);
       hdr->SetArcType(Arc::Type());
       hdr->SetVersion(version);
       hdr->SetProperties(properties);
-      int32_t file_flags = 0;
+      int32 file_flags = 0;
       if (fst.InputSymbols() && opts.write_isymbols) {
         file_flags |= FstHeader::HAS_ISYMBOLS;
       }
@@ -844,7 +772,7 @@ class FstImpl {
   // success, false on failure.
   static bool UpdateFstHeader(const Fst<Arc> &fst, std::ostream &strm,
                               const FstWriteOptions &opts, int version,
-                              std::string_view type, uint64_t properties,
+                              const string &type, uint64 properties,
                               FstHeader *hdr, size_t header_offset) {
     strm.seekp(header_offset);
     if (!strm) {
@@ -865,13 +793,10 @@ class FstImpl {
   }
 
  protected:
-  // Use atomic so that UpdateProperties() can be thread-safe.
-  // This is always used with memory_order_relaxed because it's only used
-  // as a cache and not used to synchronize other operations.
-  mutable std::atomic<uint64_t> properties_ = 0;  // Property bits.
+  mutable uint64 properties_;  // Property bits.
 
  private:
-  std::string type_ = "null";  // Unique name of FST class.
+  string type_;  // Unique name of FST class.
   std::unique_ptr<SymbolTable> isymbols_;
   std::unique_ptr<SymbolTable> osymbols_;
 };
@@ -880,8 +805,8 @@ template <class Arc>
 inline FstImpl<Arc>::FstImpl(FstImpl<Arc> &&) noexcept = default;
 
 template <class Arc>
-inline FstImpl<Arc> &FstImpl<Arc>::operator=(FstImpl<Arc> &&) noexcept =
-    default;
+inline FstImpl<Arc> &FstImpl<Arc>::operator=(
+    FstImpl<Arc> &&) noexcept = default;
 
 template <class Arc>
 bool FstImpl<Arc>::ReadHeader(std::istream &strm, const FstReadOptions &opts,
@@ -891,26 +816,29 @@ bool FstImpl<Arc>::ReadHeader(std::istream &strm, const FstReadOptions &opts,
   } else if (!hdr->Read(strm, opts.source)) {
     return false;
   }
-  VLOG(2) << "FstImpl::ReadHeader: source: " << opts.source
-          << ", fst_type: " << hdr->FstType() << ", arc_type: " << Arc::Type()
-          << ", version: " << hdr->Version() << ", flags: " << hdr->GetFlags();
+  if (FLAGS_v >= 2) {
+    LOG(INFO) << "FstImpl::ReadHeader: source: " << opts.source
+              << ", fst_type: " << hdr->FstType()
+              << ", arc_type: " << Arc::Type()
+              << ", version: " << hdr->Version()
+              << ", flags: " << hdr->GetFlags();
+  }
   if (hdr->FstType() != type_) {
-    LOG(ERROR) << "FstImpl::ReadHeader: FST not of type " << type_ << ", found "
-               << hdr->FstType() << ": " << opts.source;
+    LOG(ERROR) << "FstImpl::ReadHeader: FST not of type " << type_
+               << ": " << opts.source;
     return false;
   }
   if (hdr->ArcType() != Arc::Type()) {
     LOG(ERROR) << "FstImpl::ReadHeader: Arc not of type " << Arc::Type()
-               << ", found " << hdr->ArcType() << ": " << opts.source;
+               << ": " << opts.source;
     return false;
   }
   if (hdr->Version() < min_version) {
-    LOG(ERROR) << "FstImpl::ReadHeader: Obsolete " << type_ << " FST version "
-               << hdr->Version() << ", min_version=" << min_version << ": "
-               << opts.source;
+    LOG(ERROR) << "FstImpl::ReadHeader: Obsolete " << type_
+               << " FST version: " << opts.source;
     return false;
   }
-  properties_.store(hdr->Properties(), std::memory_order_relaxed);
+  properties_ = hdr->Properties();
   if (hdr->GetFlags() & FstHeader::HAS_ISYMBOLS) {
     isymbols_.reset(SymbolTable::Read(strm, opts.source));
   }
@@ -932,6 +860,106 @@ bool FstImpl<Arc>::ReadHeader(std::istream &strm, const FstReadOptions &opts,
 
 }  // namespace internal
 
+template <class Arc>
+uint64 TestProperties(const Fst<Arc> &fst, uint64 mask, uint64 *known);
+
+// This is a helper class template useful for attaching an FST interface to
+// its implementation, handling reference counting.
+template <class Impl, class FST = Fst<typename Impl::Arc>>
+class ImplToFst : public FST {
+ public:
+  using Arc = typename Impl::Arc;
+  using StateId = typename Arc::StateId;
+  using Weight = typename Arc::Weight;
+
+  StateId Start() const override { return impl_->Start(); }
+
+  Weight Final(StateId s) const override { return impl_->Final(s); }
+
+  size_t NumArcs(StateId s) const override { return impl_->NumArcs(s); }
+
+  size_t NumInputEpsilons(StateId s) const override {
+    return impl_->NumInputEpsilons(s);
+  }
+
+  size_t NumOutputEpsilons(StateId s) const override {
+    return impl_->NumOutputEpsilons(s);
+  }
+
+  uint64 Properties(uint64 mask, bool test) const override {
+    if (test) {
+      uint64 knownprops, testprops = TestProperties(*this, mask, &knownprops);
+      impl_->SetProperties(testprops, knownprops);
+      return testprops & mask;
+    } else {
+      return impl_->Properties(mask);
+    }
+  }
+
+  const string &Type() const override { return impl_->Type(); }
+
+  const SymbolTable *InputSymbols() const override {
+    return impl_->InputSymbols();
+  }
+
+  const SymbolTable *OutputSymbols() const override {
+    return impl_->OutputSymbols();
+  }
+
+ protected:
+  explicit ImplToFst(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
+
+  // This constructor presumes there is a copy constructor for the
+  // implementation.
+  ImplToFst(const ImplToFst<Impl, FST> &fst, bool safe) {
+    if (safe) {
+      impl_ = std::make_shared<Impl>(*(fst.impl_));
+    } else {
+      impl_ = fst.impl_;
+    }
+  }
+
+  ImplToFst() = delete;
+
+  ImplToFst(const ImplToFst<Impl, FST> &fst) : impl_(fst.impl_) {}
+
+  ImplToFst(ImplToFst<Impl, FST> &&fst) noexcept
+      : impl_(std::move(fst.impl_)) {
+    fst.impl_ = std::make_shared<Impl>();
+  }
+
+  ImplToFst<Impl, FST> &operator=(const ImplToFst<Impl, FST> &fst) {
+    impl_ = fst.impl_;
+    return *this;
+  }
+
+  ImplToFst<Impl, FST> &operator=(ImplToFst<Impl, FST> &&fst) noexcept {
+    if (this != &fst) {
+      impl_ = std::move(fst.impl_);
+      fst.impl_ = std::make_shared<Impl>();
+    }
+    return *this;
+  }
+
+  // Returns raw pointers to the shared object.
+  const Impl *GetImpl() const { return impl_.get(); }
+
+  Impl *GetMutableImpl() const { return impl_.get(); }
+
+  // Returns a ref-counted smart poiner to the implementation.
+  std::shared_ptr<Impl> GetSharedImpl() const { return impl_; }
+
+  bool Unique() const { return impl_.unique(); }
+
+  void SetImpl(std::shared_ptr<Impl> impl) { impl_ = std::move(impl); }
+
+ private:
+  template <class IFST, class OFST>
+  friend void Cast(const IFST &ifst, OFST *ofst);
+
+  std::shared_ptr<Impl> impl_;
+};
+
 // Converts FSTs by casting their implementations, where this makes sense
 // (which excludes implementations with weight-dependent virtual methods).
 // Must be a friend of the FST classes involved (currently the concrete FSTs:
@@ -942,35 +970,35 @@ bool FstImpl<Arc>::ReadHeader(std::istream &strm, const FstReadOptions &opts,
 template <class IFST, class OFST>
 void Cast(const IFST &ifst, OFST *ofst) {
   using OImpl = typename OFST::Impl;
-  ofst->impl_ = std::shared_ptr<OImpl>(
-      ifst.impl_, reinterpret_cast<OImpl *>(ifst.impl_.get()));
+  ofst->impl_ = std::shared_ptr<OImpl>(ifst.impl_,
+      reinterpret_cast<OImpl *>(ifst.impl_.get()));
 }
 
 // FST serialization.
 
 template <class Arc>
-std::string FstToString(
-    const Fst<Arc> &fst,
-    const FstWriteOptions &options = FstWriteOptions("FstToString")) {
+string FstToString(const Fst<Arc> &fst,
+                   const FstWriteOptions &options =
+                       FstWriteOptions("FstToString")) {
   std::ostringstream ostrm;
   fst.Write(ostrm, options);
   return ostrm.str();
 }
 
 template <class Arc>
-void FstToString(const Fst<Arc> &fst, std::string *result) {
+void FstToString(const Fst<Arc> &fst, string *result) {
   *result = FstToString(fst);
 }
 
 template <class Arc>
-void FstToString(const Fst<Arc> &fst, std::string *result,
+void FstToString(const Fst<Arc> &fst, string *result,
                  const FstWriteOptions &options) {
   *result = FstToString(fst, options);
 }
 
 template <class Arc>
-Fst<Arc> *StringToFst(std::string_view s) {
-  std::istringstream istrm((std::string(s)));
+Fst<Arc> *StringToFst(const string &s) {
+  std::istringstream istrm(s);
   return Fst<Arc>::Read(istrm, FstReadOptions("StringToFst"));
 }
 

@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,105 +6,111 @@
 #ifndef FST_EXTENSIONS_FAR_EXTRACT_H_
 #define FST_EXTENSIONS_FAR_EXTRACT_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <iomanip>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
-#include <fst/log.h>
 #include <fst/extensions/far/far.h>
-#include <fst/fst.h>
 #include <fst/util.h>
-#include <string_view>
 
 namespace fst {
 
 template <class Arc>
-inline void FarWriteFst(const Fst<Arc> *fst, std::string_view key,
-                        std::string *okey, int *nrep, int32_t generate_sources,
-                        int i, std::string_view source_prefix,
-                        std::string_view source_suffix) {
-  DCHECK_NE(fst, nullptr);
-  DCHECK_NE(okey, nullptr);
-  DCHECK_NE(nrep, nullptr);
+inline void FarWriteFst(const Fst<Arc> *fst, string key, string *okey,
+                        int *nrep, int32 generate_filenames, int i,
+                        const string &filename_prefix,
+                        const string &filename_suffix) {
   if (key == *okey) {
     ++*nrep;
   } else {
     *nrep = 0;
   }
-  okey->assign(key.data(), key.size());
-  std::ostringstream source_path;
-  source_path << source_prefix;
-  if (generate_sources) {
-    source_path << std::setw(generate_sources) << std::setfill('0') << i;
+  *okey = key;
+  string ofilename;
+  if (generate_filenames) {
+    std::ostringstream tmp;
+    tmp.width(generate_filenames);
+    tmp.fill('0');
+    tmp << i;
+    ofilename = tmp.str();
   } else {
-    source_path << key;
-    if (*nrep > 0) source_path << '.' << *nrep;
+    if (*nrep > 0) {
+      std::ostringstream tmp;
+      tmp << '.' << nrep;
+      key.append(tmp.str().data(), tmp.str().size());
+    }
+    ofilename = key;
   }
-  source_path << source_suffix;
-  fst->Write(source_path.str());
+  fst->Write(filename_prefix + ofilename + filename_suffix);
 }
 
 template <class Arc>
-void Extract(FarReader<Arc> &reader, int32_t generate_sources,
-             const std::string &keys, std::string_view key_separator,
-             std::string_view range_delimiter, std::string_view source_prefix,
-             std::string_view source_suffix) {
-  std::string okey;
+void FarExtract(const std::vector<string> &ifilenames, int32 generate_filenames,
+                const string &keys, const string &key_separator,
+                const string &range_delimiter, const string &filename_prefix,
+                const string &filename_suffix) {
+  std::unique_ptr<FarReader<Arc>> far_reader(
+      FarReader<Arc>::Open(ifilenames));
+  if (!far_reader) return;
+  string okey;
   int nrep = 0;
+  std::vector<char *> key_vector;
   // User has specified a set of FSTs to extract, where some of these may in
   // fact be ranges.
   if (!keys.empty()) {
-    std::vector<std::string_view> key_vector =
-        StrSplit(keys, ByAnyChar(key_separator), SkipEmpty());
+    auto *keys_cstr = new char[keys.size() + 1];
+    strcpy(keys_cstr, keys.c_str());
+    SplitString(keys_cstr, key_separator.c_str(), &key_vector, true);
     int i = 0;
     for (size_t k = 0; k < key_vector.size(); ++k, ++i) {
-      std::string_view key = key_vector[k];
-      std::vector<std::string_view> range_vector =
-          StrSplit(key, ByAnyChar(range_delimiter));
+      string key = key_vector[k];
+      auto *key_cstr = new char[key.size() + 1];
+      strcpy(key_cstr, key.c_str());
+      std::vector<char *> range_vector;
+      SplitString(key_cstr, range_delimiter.c_str(), &range_vector, false);
       if (range_vector.size() == 1) {  // Not a range
-        if (!reader.Find(key)) {
-          LOG(ERROR) << "Extract: Cannot find key " << key;
+        if (!far_reader->Find(key)) {
+          LOG(ERROR) << "FarExtract: Cannot find key " << key;
           return;
         }
-        const auto *fst = reader.GetFst();
-        FarWriteFst(fst, key, &okey, &nrep, generate_sources, i, source_prefix,
-                    source_suffix);
+        const auto *fst = far_reader->GetFst();
+        FarWriteFst(fst, key, &okey, &nrep, generate_filenames, i,
+                    filename_prefix, filename_suffix);
       } else if (range_vector.size() == 2) {  // A legal range
-        std::string_view begin_key = range_vector[0];
-        std::string_view end_key = range_vector[1];
+        string begin_key = range_vector[0];
+        string end_key = range_vector[1];
         if (begin_key.empty() || end_key.empty()) {
-          LOG(ERROR) << "Extract: Illegal range specification " << key;
+          LOG(ERROR) << "FarExtract: Illegal range specification " << key;
           return;
         }
-        if (!reader.Find(begin_key)) {
-          LOG(ERROR) << "Extract: Cannot find key " << begin_key;
+        if (!far_reader->Find(begin_key)) {
+          LOG(ERROR) << "FarExtract: Cannot find key " << begin_key;
           return;
         }
-        for (; !reader.Done(); reader.Next(), ++i) {
-          const auto &ikey = reader.GetKey();
+        for (; !far_reader->Done(); far_reader->Next(), ++i) {
+          const auto &ikey = far_reader->GetKey();
           if (end_key < ikey) break;
-          const auto *fst = reader.GetFst();
-          FarWriteFst(fst, ikey, &okey, &nrep, generate_sources, i,
-                      source_prefix, source_suffix);
+          const auto *fst = far_reader->GetFst();
+          FarWriteFst(fst, ikey, &okey, &nrep, generate_filenames, i,
+                      filename_prefix, filename_suffix);
         }
       } else {
-        LOG(ERROR) << "Extract: Illegal range specification " << key;
+        LOG(ERROR) << "FarExtract: Illegal range specification " << key;
         return;
       }
+      delete[] key_cstr;
     }
+    delete[] keys_cstr;
     return;
   }
   // Nothing specified, so just extracts everything.
-  for (size_t i = 1; !reader.Done(); reader.Next(), ++i) {
-    const auto &key = reader.GetKey();
-    const auto *fst = reader.GetFst();
-    FarWriteFst(fst, key, &okey, &nrep, generate_sources, i, source_prefix,
-                source_suffix);
+  for (size_t i = 1; !far_reader->Done(); far_reader->Next(), ++i) {
+    const auto &key = far_reader->GetKey();
+    const auto *fst = far_reader->GetFst();
+    FarWriteFst(fst, key, &okey, &nrep, generate_filenames, i, filename_prefix,
+                filename_suffix);
   }
+  return;
 }
 
 }  // namespace fst

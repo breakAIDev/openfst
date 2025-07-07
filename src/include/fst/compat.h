@@ -1,13 +1,11 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
+// Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
+// distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
@@ -15,48 +13,71 @@
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
-#ifndef FST_COMPAT_H_
-#define FST_COMPAT_H_
+#ifndef FST_LIB_COMPAT_H_
+#define FST_LIB_COMPAT_H_
 
-#include <algorithm>
 #include <climits>
-#include <cstddef>
-#include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <initializer_list>
 #include <iostream>
-#include <iterator>
-#include <memory>
-#include <numeric>
-#include <sstream>
 #include <string>
-#include <string_view>
-#include <type_traits>
-#include <utility>
 #include <vector>
+
+// Makes copy constructor and operator= private
+// Deprecated: now just use =delete.
+#define DISALLOW_COPY_AND_ASSIGN(type)    \
+  type(const type&);                      \
+  void operator=(const type&)
 
 #if defined(__GNUC__) || defined(__clang__)
 #define OPENFST_DEPRECATED(message) __attribute__((deprecated(message)))
 #elif defined(_MSC_VER)
-#define OPENFST_DEPRECATED(message) [[deprecated(message)]]
+#define OPENFST_DEPRECATED(message) __declspec(deprecated(message))
 #else
 #define OPENFST_DEPRECATED(message)
 #endif
 
+#include <fst/config.h>
+#include <fst/types.h>
+#include <fst/lock.h>
+#include <fst/flags.h>
+#include <fst/log.h>
+#include <fst/icu.h>
+
+using std::string;
+
+void FailedNewHandler();
+
+#ifdef _MSC_VER
+#include <intrin.h>
+const char* basename(const char* path);
+#define __builtin_popcount __popcnt
+
+#ifdef _M_X64
+// Using 64-bit MSVC intrinsics.
+#define __builtin_popcountll __popcnt64
+inline unsigned int __builtin_ctzll(std::uint64_t w) {
+  unsigned long v;
+  return _BitScanForward64(&v, std::uint32_t(w)) ? v : 0;
+}
+#else
+// Using 32-bit MSVC intrinsics.
+inline unsigned int __builtin_popcountll(std::uint64_t w) {
+  return __popcnt(std::uint32_t(w)) + __popcnt(std::uint32_t(w >> 32));
+}
+inline unsigned int __builtin_ctzll(std::uint64_t w) {
+  unsigned long v;
+  return (_BitScanForward(&v, std::uint32_t(w)) ? v :
+          _BitScanForward(&v, std::uint32_t(w >> 32)) ? v + 32 : 0);
+}
+#endif  // _M_X64
+#endif  // _MSC_VER
+
 namespace fst {
 
 // Downcasting.
-
-template <typename To, typename From>
-inline To down_cast(From *f) {
-  return static_cast<To>(f);
-}
-
-template <typename To, typename From>
-inline To down_cast(From &f) {
-  return static_cast<To>(f);
-}
+template<typename To, typename From>
+inline To down_cast(From* f) { return static_cast<To>(f); }
 
 // Bitcasting.
 template <class Dest, class Source>
@@ -64,269 +85,46 @@ inline Dest bit_cast(const Source &source) {
   static_assert(sizeof(Dest) == sizeof(Source),
                 "Bitcasting unsafe for specified types");
   Dest dest;
-  std::memcpy(&dest, &source, sizeof(dest));
+  memcpy(&dest, &source, sizeof(dest));
   return dest;
 }
 
-template <typename T>
-T UnalignedLoad(const void *p) {
-  T t;
-  std::memcpy(&t, p, sizeof t);
-  return t;
-}
-
-namespace internal {
-
-// TODO(kbg): Remove this once we migrate to C++20.
-template <typename T>
-struct type_identity {
-  using type = T;
-};
-
-template <typename T>
-using type_identity_t = typename type_identity<T>::type;
-
-}  // namespace internal
-
-template <typename To>
-constexpr To implicit_cast(typename internal::type_identity_t<To> to) {
-  return to;
-}
-
-// Checksums.
+// Check sums
 class CheckSummer {
  public:
-  CheckSummer();
+  CheckSummer() : count_(0) {
+    check_sum_.resize(kCheckSumLength, '\0');
+  }
 
-  void Reset();
+  void Reset() {
+    count_ = 0;
+    for (int i = 0; i < kCheckSumLength; ++i) check_sum_[i] = '\0';
+  }
 
-  void Update(std::string_view data);
+  void Update(void const *data, int size) {
+    const char *p = reinterpret_cast<const char *>(data);
+    for (int i = 0; i < size; ++i) {
+      check_sum_[(count_++) % kCheckSumLength] ^= p[i];
+    }
+  }
 
-  std::string Digest() { return check_sum_; }
+  void Update(string const &data) {
+    for (int i = 0; i < data.size(); ++i) {
+      check_sum_[(count_++) % kCheckSumLength] ^= data[i];
+    }
+  }
+
+  string Digest() { return check_sum_; }
 
  private:
-  static constexpr int kCheckSumLength = 32;
+  static const int kCheckSumLength = 32;
   int count_;
-  std::string check_sum_;
+  string check_sum_;
 
   CheckSummer(const CheckSummer &) = delete;
   CheckSummer &operator=(const CheckSummer &) = delete;
 };
 
-// Defines make_unique_for_overwrite using a standard definition that should be
-// compatible with the C++20 definition. That is, all compiling uses of
-// `std::make_unique_for_overwrite` should have the same result with
-// `fst::make_unique_for_overwrite`. Note that the reverse doesn't
-// necessarily hold.
-// TODO(kbg): Remove these once we migrate to C++20.
-
-template <typename T>
-std::unique_ptr<T> make_unique_for_overwrite() {
-  return std::unique_ptr<T>(new T);
-}
-
-template <typename T>
-std::unique_ptr<T> make_unique_for_overwrite(size_t n) {
-  return std::unique_ptr<T>(new std::remove_extent_t<T>[n]);
-}
-
-template <typename T>
-std::unique_ptr<T> WrapUnique(T *ptr) {
-  return std::unique_ptr<T>(ptr);
-}
-
-// Range utilities
-
-// A range adaptor for a pair of iterators.
-//
-// This just wraps two iterators into a range-compatible interface. Nothing
-// fancy at all.
-template <typename IteratorT>
-class iterator_range {
- public:
-  using iterator = IteratorT;
-  using const_iterator = IteratorT;
-  using value_type = typename std::iterator_traits<IteratorT>::value_type;
-
-  iterator_range() : begin_iterator_(), end_iterator_() {}
-  iterator_range(IteratorT begin_iterator, IteratorT end_iterator)
-      : begin_iterator_(std::move(begin_iterator)),
-        end_iterator_(std::move(end_iterator)) {}
-
-  IteratorT begin() const { return begin_iterator_; }
-  IteratorT end() const { return end_iterator_; }
-
- private:
-  IteratorT begin_iterator_, end_iterator_;
-};
-
-// Convenience function for iterating over sub-ranges.
-//
-// This provides a bit of syntactic sugar to make using sub-ranges
-// in for loops a bit easier. Analogous to std::make_pair().
-template <typename T>
-iterator_range<T> make_range(T x, T y) {
-  return iterator_range<T>(std::move(x), std::move(y));
-}
-
-// String munging.
-
-namespace internal {
-
-// Computes size of joined string.
-template <class S>
-size_t GetResultSize(const std::vector<S> &elements, size_t s_size) {
-  const auto lambda = [](size_t partial, const S &right) {
-    return partial + right.size();
-  };
-  return std::accumulate(elements.begin(), elements.end(), 0, lambda) +
-         elements.size() * s_size - s_size;
-}
-
-}  // namespace internal
-
-inline bool StrContains(std::string_view haystack, std::string_view needle) {
-  return haystack.find(needle) != haystack.npos;
-}
-
-inline bool StrContains(std::string_view haystack, char needle) {
-  return haystack.find(needle) != haystack.npos;
-}
-
-template <class S>
-std::string StrJoin(const std::vector<S> &elements, std::string_view delim) {
-  std::string result;
-  if (elements.empty()) return result;
-  const size_t s_size = delim.size();
-  result.reserve(internal::GetResultSize(elements, s_size));
-  auto it = elements.begin();
-  result.append(it->data(), it->size());
-  for (++it; it != elements.end(); ++it) {
-    result.append(delim.data(), s_size);
-    result.append(it->data(), it->size());
-  }
-  return result;
-}
-
-template <class S>
-std::string StrJoin(const std::vector<S> &elements, char delim) {
-  const std::string_view view_delim(&delim, 1);
-  return StrJoin(elements, view_delim);
-}
-
-struct SkipEmpty {};
-
-struct ByAnyChar {
- public:
-  explicit ByAnyChar(std::string_view sp) : delimiters(sp) {}
-
-  std::string delimiters;
-};
-
-namespace internal {
-
-class StringSplitter {
- public:
-  using const_iterator = std::vector<std::string_view>::const_iterator;
-  using value_type = std::string_view;
-
-  StringSplitter(std::string_view string, std::string delim,
-                 bool skip_empty = false)
-      : string_(std::move(string)),
-        delim_(std::move(delim)),
-        skip_empty_(skip_empty),
-        vec_(SplitToSv()) {}
-
-  inline operator  // NOLINT(google-explicit-constructor)
-      std::vector<std::string_view>() && {
-    return std::move(vec_);
-  }
-
-  inline operator  // NOLINT(google-explicit-constructor)
-      std::vector<std::string>() {
-    std::vector<std::string> str_vec(vec_.begin(), vec_.end());
-    return str_vec;
-  }
-
-  const_iterator begin() const { return vec_.begin(); }
-  const_iterator end() const { return vec_.end(); }
-
- private:
-  std::vector<std::string_view> SplitToSv();
-
-  std::string_view string_;
-  std::string delim_;
-  bool skip_empty_;
-  std::vector<std::string_view> vec_;
-};
-
-}  // namespace internal
-
-// `StrSplit` replacements. Only support splitting on `char` or
-// `ByAnyChar` (notable not on a multi-char string delimiter), and with or
-// without `SkipEmpty`.
-internal::StringSplitter StrSplit(std::string_view full, ByAnyChar delim);
-internal::StringSplitter StrSplit(std::string_view full, char delim);
-internal::StringSplitter StrSplit(std::string_view full, ByAnyChar delim,
-                                  SkipEmpty);
-internal::StringSplitter StrSplit(std::string_view full, char delim, SkipEmpty);
-
-void StripTrailingAsciiWhitespace(std::string *full);
-
-std::string_view StripTrailingAsciiWhitespace(std::string_view full);
-
-class StringOrInt {
- public:
-  template <typename T, typename = std::enable_if_t<
-                            std::is_convertible_v<T, std::string_view>>>
-  StringOrInt(T s) : str_(std::string(s)) {}  // NOLINT
-
-  StringOrInt(int i) {  // NOLINT
-    str_ = std::to_string(i);
-  }
-
-  const std::string &Get() const { return str_; }
-
- private:
-  std::string str_;
-};
-
-
-inline std::string StrCat(const StringOrInt &s1, const StringOrInt &s2) {
-  return s1.Get() + s2.Get();
-}
-
-inline std::string StrCat(const StringOrInt &s1, const StringOrInt &s2,
-                          const StringOrInt &s3) {
-  return s1.Get() + s2.Get() + s3.Get();
-}
-
-// For four or more args, wrap them up into an initializer list and use an
-// explicit loop.
-template <typename... Args>
-std::string StrCat(const StringOrInt &s1, const StringOrInt &s2,
-                   const StringOrInt &s3, const Args &...args) {
-  const std::initializer_list<StringOrInt> list{
-      s1, s2, s3, static_cast<const StringOrInt &>(args)...};
-  std::ostringstream ostrm;
-  for (const auto &s : list) ostrm << s.Get();
-  return ostrm.str();
-}
-
-// TODO(agutkin): Remove this once we migrate to C++20, where `starts_with`
-// is available.
-inline bool StartsWith(std::string_view text, std::string_view prefix) {
-  return prefix.empty() ||
-         (text.size() >= prefix.size() &&
-          std::memcmp(text.data(), prefix.data(), prefix.size()) == 0);
-}
-
-inline bool ConsumePrefix(std::string_view *s, std::string_view expected) {
-  if (!StartsWith(*s, expected)) return false;
-  s->remove_prefix(expected.size());
-  return true;
-}
-
 }  // namespace fst
 
-#endif  // FST_COMPAT_H_
+#endif  // FST_LIB_COMPAT_H_

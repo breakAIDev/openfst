@@ -1,42 +1,24 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
 #ifndef FST_EXTENSIONS_LINEAR_LINEAR_FST_DATA_BUILDER_H_
 #define FST_EXTENSIONS_LINEAR_LINEAR_FST_DATA_BUILDER_H_
 
-#include <cstddef>
-#include <cstdint>
 #include <map>
-#include <memory>
 #include <queue>
 #include <set>
 #include <sstream>
 #include <stack>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include <fst/compat.h>
 #include <fst/log.h>
-#include <fst/extensions/linear/linear-fst-data.h>
-#include <fst/extensions/linear/trie.h>
 #include <fst/fst.h>
 #include <fst/symbol-table.h>
 #include <fst/util.h>
+
+#include <fst/extensions/linear/linear-fst-data.h>
 
 namespace fst {
 
@@ -45,12 +27,11 @@ template <class A>
 class FeatureGroupBuilder;
 
 // For logging purposes
-inline std::string TranslateLabel(int64_t label, const SymbolTable *syms);
+inline string TranslateLabel(int64 label, const SymbolTable *syms);
 template <class Iterator>
-std::string JoinLabels(Iterator begin, Iterator end, const SymbolTable *syms);
+string JoinLabels(Iterator begin, Iterator end, const SymbolTable *syms);
 template <class Label>
-std::string JoinLabels(const std::vector<Label> &labels,
-                       const SymbolTable *syms);
+string JoinLabels(const std::vector<Label> &labels, const SymbolTable *syms);
 
 // Guesses the appropriate boundary label (start- or end-of-sentence)
 // for all labels equal to `boundary` and modifies the `sequence`
@@ -331,7 +312,7 @@ class FeatureGroupBuilder {
   // Reconstruct the path from trie root to given node for logging.
   bool TrieDfs(const Topology &topology, int cur, int target,
                std::vector<InputOutputLabel> *path) const;
-  std::string TriePath(int node, const Topology &topology) const;
+  string TriePath(int node, const Topology &topology) const;
 
   bool error_;
   size_t future_size_;
@@ -716,15 +697,17 @@ bool FeatureGroupBuilder<A>::AddWeight(const std::vector<Label> &input,
     LOG(WARNING) << "\tOutput: " << JoinLabels(output, fsyms_);
     return false;
   }
-  if (num_input_start > 0 && input.size() - future_size_ - num_input_start <
-                                 output.size() - num_output_start) {
+  if (num_input_start > 0 &&
+      input.size() - future_size_ - num_input_start <
+          output.size() - num_output_start) {
     LOG(WARNING) << "Ignored: matching start-of-sentence with actual output!";
     LOG(WARNING) << "\tInput: " << JoinLabels(input, fsyms_);
     LOG(WARNING) << "\tOutput: " << JoinLabels(output, osyms_);
     return false;
   }
-  if (num_output_start > 0 && input.size() - future_size_ - num_input_start >
-                                  output.size() - num_output_start) {
+  if (num_output_start > 0 &&
+      input.size() - future_size_ - num_input_start >
+          output.size() - num_output_start) {
     LOG(WARNING) << "Ignored: matching start-of-sentence with actual input!";
     LOG(WARNING) << "\tInput: " << JoinLabels(input, fsyms_);
     LOG(WARNING) << "\tOutput: " << JoinLabels(output, osyms_);
@@ -997,8 +980,8 @@ bool FeatureGroupBuilder<A>::TrieDfs(
 }
 
 template <class A>
-std::string FeatureGroupBuilder<A>::TriePath(int node,
-                                             const Topology &topology) const {
+string FeatureGroupBuilder<A>::TriePath(int node,
+                                        const Topology &topology) const {
   std::vector<InputOutputLabel> labels;
   TrieDfs(topology, topology.Root(), node, &labels);
   bool first = true;
@@ -1017,8 +1000,8 @@ std::string FeatureGroupBuilder<A>::TriePath(int node,
   return strm.str();
 }
 
-inline std::string TranslateLabel(int64_t label, const SymbolTable *syms) {
-  std::string ret;
+inline string TranslateLabel(int64 label, const SymbolTable *syms) {
+  string ret;
   if (syms != nullptr) ret += syms->Find(label);
   if (ret.empty()) {
     std::ostringstream strm;
@@ -1029,7 +1012,7 @@ inline std::string TranslateLabel(int64_t label, const SymbolTable *syms) {
 }
 
 template <class Iterator>
-std::string JoinLabels(Iterator begin, Iterator end, const SymbolTable *syms) {
+string JoinLabels(Iterator begin, Iterator end, const SymbolTable *syms) {
   if (begin == end) return "<empty>";
   std::ostringstream strm;
   bool first = true;
@@ -1044,8 +1027,7 @@ std::string JoinLabels(Iterator begin, Iterator end, const SymbolTable *syms) {
 }
 
 template <class Label>
-std::string JoinLabels(const std::vector<Label> &labels,
-                       const SymbolTable *syms) {
+string JoinLabels(const std::vector<Label> &labels, const SymbolTable *syms) {
   return JoinLabels(labels.begin(), labels.end(), syms);
 }
 

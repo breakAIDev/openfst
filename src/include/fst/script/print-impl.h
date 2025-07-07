@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -25,13 +11,10 @@
 #include <sstream>
 #include <string>
 
-#include <fst/log.h>
-#include <fst/fst.h>
 #include <fst/fstlib.h>
-#include <fst/properties.h>
-#include <fst/symbol-table.h>
 #include <fst/util.h>
-#include <string_view>
+
+DECLARE_string(fst_field_separator);
 
 namespace fst {
 
@@ -45,37 +28,38 @@ class FstPrinter {
   using Label = typename Arc::Label;
   using Weight = typename Arc::Weight;
 
-  explicit FstPrinter(const Fst<Arc> &fst, const SymbolTable *isyms,
-                      const SymbolTable *osyms, const SymbolTable *ssyms,
-                      bool accept, bool show_weight_one,
-                      std::string_view field_separator,
-                      std::string_view missing_symbol = "")
+  FstPrinter(const Fst<Arc> &fst, const SymbolTable *isyms,
+             const SymbolTable *osyms, const SymbolTable *ssyms, bool accep,
+             bool show_weight_one, const string &field_separator,
+             const string &missing_symbol = "")
       : fst_(fst),
         isyms_(isyms),
         osyms_(osyms),
         ssyms_(ssyms),
-        accept_(accept && (fst.Properties(kAcceptor, true) == kAcceptor)),
+        accep_(accep && fst.Properties(kAcceptor, true)),
+        ostrm_(nullptr),
         show_weight_one_(show_weight_one),
         sep_(field_separator),
         missing_symbol_(missing_symbol) {}
 
   // Prints FST to an output stream.
-  void Print(std::ostream &ostrm, std::string_view dest) {
-    dest_ = std::string(dest);
+  void Print(std::ostream *ostrm, const string &dest) {
+    ostrm_ = ostrm;
+    dest_ = dest;
     const auto start = fst_.Start();
     if (start == kNoStateId) return;
     // Initial state first.
-    PrintState(ostrm, start);
+    PrintState(start);
     for (StateIterator<Fst<Arc>> siter(fst_); !siter.Done(); siter.Next()) {
       const auto s = siter.Value();
-      if (s != start) PrintState(ostrm, s);
+      if (s != start) PrintState(s);
     }
   }
 
  private:
-  std::string FormatId(StateId id, const SymbolTable *syms) const {
+  void PrintId(StateId id, const SymbolTable *syms, const char *name) const {
     if (syms) {
-      std::string symbol = syms->Find(id);
+      string symbol = syms->Find(id);
       if (symbol.empty()) {
         if (missing_symbol_.empty()) {
           FSTERROR() << "FstPrinter: Integer " << id
@@ -87,54 +71,58 @@ class FstPrinter {
           symbol = missing_symbol_;
         }
       }
-      return symbol;
+      *ostrm_ << symbol;
     } else {
-      return std::to_string(id);
+      *ostrm_ << id;
     }
   }
 
-  std::string FormatStateId(StateId s) const { return FormatId(s, ssyms_); }
+  void PrintStateId(StateId s) const { PrintId(s, ssyms_, "state ID"); }
 
-  std::string FormatILabel(Label l) const { return FormatId(l, isyms_); }
+  void PrintILabel(Label l) const { PrintId(l, isyms_, "arc input label"); }
 
-  std::string FormatOLabel(Label l) const { return FormatId(l, osyms_); }
+  void PrintOLabel(Label l) const { PrintId(l, osyms_, "arc output label"); }
 
-  void PrintState(std::ostream &ostrm, StateId s) const {
+  void PrintState(StateId s) const {
     bool output = false;
     for (ArcIterator<Fst<Arc>> aiter(fst_, s); !aiter.Done(); aiter.Next()) {
       const auto &arc = aiter.Value();
-      ostrm << FormatStateId(s) << sep_ << FormatStateId(arc.nextstate)
-              << sep_ << FormatILabel(arc.ilabel);
-      if (!accept_) {
-        ostrm << sep_ << FormatOLabel(arc.olabel);
+      PrintStateId(s);
+      *ostrm_ << sep_;
+      PrintStateId(arc.nextstate);
+      *ostrm_ << sep_;
+      PrintILabel(arc.ilabel);
+      if (!accep_) {
+        *ostrm_ << sep_;
+        PrintOLabel(arc.olabel);
       }
-      if (show_weight_one_ || arc.weight != Weight::One()) {
-        ostrm << sep_ << arc.weight;
-      }
-      ostrm << "\n";
+      if (show_weight_one_ || arc.weight != Weight::One())
+        *ostrm_ << sep_ << arc.weight;
+      *ostrm_ << "\n";
       output = true;
     }
     const auto weight = fst_.Final(s);
     if (weight != Weight::Zero() || !output) {
-      ostrm << FormatStateId(s);
+      PrintStateId(s);
       if (show_weight_one_ || weight != Weight::One()) {
-        ostrm << sep_ << weight;
+        *ostrm_ << sep_ << weight;
       }
-      ostrm << "\n";
+      *ostrm_ << "\n";
     }
   }
 
   const Fst<Arc> &fst_;
-  const SymbolTable *isyms_;    // ilabel symbol table.
-  const SymbolTable *osyms_;    // olabel symbol table.
-  const SymbolTable *ssyms_;    // slabel symbol table.
-  bool accept_;                 // Print as acceptor when possible?
-  std::string dest_;            // Text FST destination name.
-  bool show_weight_one_;        // Print weights equal to Weight::One()?
-  std::string sep_;             // Separator character between fields.
-  std::string missing_symbol_;  // Symbol to print when lookup fails (default
-                                // "" means raise error).
-
+  const SymbolTable *isyms_;  // ilabel symbol table.
+  const SymbolTable *osyms_;  // olabel symbol table.
+  const SymbolTable *ssyms_;  // slabel symbol table.
+  bool accep_;                // Print as acceptor when possible?
+  std::ostream *ostrm_;       // Text FST destination.
+  string dest_;               // Text FST destination name.
+  bool show_weight_one_;      // Print weights equal to Weight::One()?
+  string sep_;                // Separator character between fields.
+  string missing_symbol_;     // Symbol to print when lookup fails (default
+                              // "" means raise error).
+                              //
   FstPrinter(const FstPrinter &) = delete;
   FstPrinter &operator=(const FstPrinter &) = delete;
 };

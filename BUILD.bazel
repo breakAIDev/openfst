@@ -1,4 +1,4 @@
-# Copyright 2015-2024 Google LLC. All Rights Reserved.
+# Copyright 2015-2019 Google LLC. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,30 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
-
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])  # Apache 2.0
 
 exports_files(["COPYING"])
-
-config_setting(
-    name = "has_absl",
-    values = {"define": "absl=1"},
-)
-
-DEFINES = select({
-    "@bazel_tools//src/conditions:windows": ["FST_NO_DYNAMIC_LINKING"],
-    "//conditions:default": [],
-})
-
-# Following default compile options will disable signed/unsigned integer
-# comparison warning for gcc/clang and Microsoft Visual Studio compilers.
-COPTS = select({
-    "@bazel_tools//src/conditions:windows": ["/wd4388"],
-    "//conditions:default": ["-Wno-sign-compare"],
-})
 
 prefix_dir = "src/"
 
@@ -64,7 +45,6 @@ PUBLIC_HEADERS = [
     prefix_dir + "include/fst/arcsort.h",
     prefix_dir + "include/fst/bi-table.h",
     prefix_dir + "include/fst/cache.h",
-    prefix_dir + "include/fst/cc-visitors.h",
     prefix_dir + "include/fst/closure.h",
     prefix_dir + "include/fst/compact-fst.h",
     prefix_dir + "include/fst/complement.h",
@@ -87,13 +67,13 @@ PUBLIC_HEADERS = [
     prefix_dir + "include/fst/filter-state.h",
     prefix_dir + "include/fst/fst.h",
     prefix_dir + "include/fst/heap.h",
-    prefix_dir + "include/fst/impl-to-fst.h",
     prefix_dir + "include/fst/intersect.h",
     prefix_dir + "include/fst/invert.h",
     prefix_dir + "include/fst/isomorphic.h",
     prefix_dir + "include/fst/label-reachable.h",
     prefix_dir + "include/fst/lookahead-filter.h",
     prefix_dir + "include/fst/lookahead-matcher.h",
+    prefix_dir + "include/fst/map.h",
     prefix_dir + "include/fst/matcher-fst.h",
     prefix_dir + "include/fst/matcher.h",
     prefix_dir + "include/fst/memory.h",
@@ -138,14 +118,12 @@ PUBLIC_HEADERS = [
 cc_library(
     name = "lib_lite",
     srcs = [
-        prefix_dir + "lib/encode.cc",
         prefix_dir + "lib/fst.cc",
         prefix_dir + "lib/properties.cc",
         prefix_dir + "lib/symbol-table-ops.cc",
     ],
     hdrs = PUBLIC_HEADERS,
-    copts = COPTS,
-    defines = DEFINES,
+    copts = ["-Wno-sign-compare"],
     includes = [prefix_dir + "include"],
     linkopts = ["-lm"],
     deps = [
@@ -164,7 +142,6 @@ cc_library(
 cc_library(
     name = "fst",
     hdrs = PUBLIC_HEADERS,
-    defines = DEFINES,
     includes = [prefix_dir + "include"],
     deps = [
         ":fst-types",
@@ -181,7 +158,6 @@ cc_library(
 cc_library(
     name = "fst-types",
     srcs = [prefix_dir + "lib/fst-types.cc"],
-    defines = DEFINES,
     deps = [":lib_lite"],
     alwayslink = 1,  # because of registration
 )
@@ -190,8 +166,7 @@ cc_library(
     name = "symbol-table",
     srcs = [prefix_dir + "lib/symbol-table.cc"],
     hdrs = [prefix_dir + "include/fst/symbol-table.h"],
-    copts = COPTS,
-    defines = DEFINES,
+    copts = ["-Wno-sign-compare"],
     includes = [prefix_dir + "include"],
     deps = [
         ":base",
@@ -203,7 +178,6 @@ cc_library(
     name = "weight",
     srcs = [prefix_dir + "lib/weight.cc"],
     hdrs = [
-        prefix_dir + "include/fst/error-weight.h",
         prefix_dir + "include/fst/expectation-weight.h",
         prefix_dir + "include/fst/float-weight.h",
         prefix_dir + "include/fst/lexicographic-weight.h",
@@ -219,7 +193,6 @@ cc_library(
         prefix_dir + "include/fst/union-weight.h",
         prefix_dir + "include/fst/weight.h",
     ],
-    defines = DEFINES,
     includes = [prefix_dir + "include"],
     linkopts = ["-lm"],
     deps = [
@@ -288,21 +261,14 @@ cc_library(
     ],
     hdrs = [
         prefix_dir + "include/fst/compat.h",
+        prefix_dir + "include/fst/config.h",
         prefix_dir + "include/fst/flags.h",
         prefix_dir + "include/fst/icu.h",
         prefix_dir + "include/fst/lock.h",
         prefix_dir + "include/fst/log.h",
-        prefix_dir + "include/fst/windows_defs.inc",
+        prefix_dir + "include/fst/types.h",
     ],
-    defines = select({
-        ":has_absl": ["OPENFST_HAS_ABSL=1"],
-        "//conditions:default": [],
-    }),
     includes = [prefix_dir + "include"],
-    deps = select({
-        ":has_absl": ["@com_google_absl//absl/synchronization"],
-        "//conditions:default": [],
-    }),
 )
 
 # Core library tests (test/)
@@ -312,10 +278,8 @@ cc_test(
     timeout = "short",
     srcs = [
         prefix_dir + "test/fst_test.cc",
-        prefix_dir + "include/fst/test/compactors.h",
         prefix_dir + "include/fst/test/fst_test.h",
     ],
-    includes = [prefix_dir + "include"],
     deps = [":fst"],
 )
 
@@ -331,10 +295,7 @@ cc_test(
     name = "weight_test",
     timeout = "short",
     srcs = [prefix_dir + "test/weight_test.cc"],
-    copts = COPTS + select({
-        "@bazel_tools//src/conditions:windows": [],
-        "//conditions:default": ["-Wno-unused-local-typedefs"],
-    }),
+    copts = ["-Wno-unused-local-typedefs"],
     deps = [
         ":fst",
         ":weight-tester",
@@ -376,13 +337,14 @@ cc_library(
     ],
     hdrs = [
         prefix_dir + "include/fst/script/arc-class.h",
-        prefix_dir + "include/fst/script/arcfilter-impl.h",
         prefix_dir + "include/fst/script/arciterator-class.h",
         prefix_dir + "include/fst/script/arg-packs.h",
         prefix_dir + "include/fst/script/encodemapper-class.h",
         prefix_dir + "include/fst/script/fst-class.h",
+        prefix_dir + "include/fst/script/fstscript-decl.h",
         prefix_dir + "include/fst/script/fstscript.h",
         prefix_dir + "include/fst/script/getters.h",
+        prefix_dir + "include/fst/script/register.h",
         prefix_dir + "include/fst/script/script-impl.h",
         prefix_dir + "include/fst/script/stateiterator-class.h",
         prefix_dir + "include/fst/script/text-io.h",
@@ -432,7 +394,7 @@ cc_library(
         prefix_dir + "include/fst/script/union.h",
         prefix_dir + "include/fst/script/verify.h",
     ],
-    copts = COPTS,
+    copts = ["-Wno-sign-compare"],
     includes = [prefix_dir + "include"],
     deps = [":fst"],
 )
@@ -762,17 +724,15 @@ cc_library(
 
 cc_library(
     name = "far",
+    srcs = [prefix_dir + "extensions/far/strings.cc"],
     hdrs = [
         prefix_dir + "include/fst/extensions/far/compile-strings.h",
-        prefix_dir + "include/fst/extensions/far/convert.h",
         prefix_dir + "include/fst/extensions/far/create.h",
-        prefix_dir + "include/fst/extensions/far/encode.h",
         prefix_dir + "include/fst/extensions/far/equal.h",
         prefix_dir + "include/fst/extensions/far/extract.h",
         prefix_dir + "include/fst/extensions/far/farlib.h",
         prefix_dir + "include/fst/extensions/far/info.h",
         prefix_dir + "include/fst/extensions/far/isomorphic.h",
-        prefix_dir + "include/fst/extensions/far/map-reduce.h",
         prefix_dir + "include/fst/extensions/far/print-strings.h",
     ],
     includes = [prefix_dir + "include"],
@@ -785,11 +745,11 @@ cc_library(
 cc_library(
     name = "farscript",
     srcs = [
-        prefix_dir + "extensions/far/compile-strings.cc",
         prefix_dir + "extensions/far/far-class.cc",
         prefix_dir + "extensions/far/farscript.cc",
         prefix_dir + "extensions/far/getters.cc",
         prefix_dir + "extensions/far/script-impl.cc",
+        prefix_dir + "extensions/far/strings.cc",
     ],
     hdrs = [
         prefix_dir + "include/fst/extensions/far/compile-strings.h",
@@ -809,18 +769,13 @@ cc_library(
 [
     cc_binary(
         name = "far%s" % operation,
-        srcs = [
-            prefix_dir + "extensions/far/far%s.cc" % operation,
-            prefix_dir + "extensions/far/far%s-main.cc" % operation,
-        ],
+        srcs = [prefix_dir + "extensions/far/far%s.cc" % operation],
         linkstatic = static_binary,
         deps = [":farscript"],
     )
     for operation in [
         "compilestrings",
-        "convert",
         "create",
-        "encode",
         "equal",
         "extract",
         "info",
@@ -872,10 +827,7 @@ cc_library(
 
 cc_binary(
     name = "pdtcompose",
-    srcs = [
-        prefix_dir + "extensions/pdt/pdtcompose.cc",
-        prefix_dir + "extensions/pdt/pdtcompose-main.cc",
-    ],
+    srcs = [prefix_dir + "extensions/pdt/pdtcompose.cc"],
     linkstatic = static_binary,
     deps = [
         ":fstscript_connect",
@@ -886,10 +838,7 @@ cc_binary(
 [
     cc_binary(
         name = "pdt%s" % operation,
-        srcs = [
-            prefix_dir + "extensions/pdt/pdt%s.cc" % operation,
-            prefix_dir + "extensions/pdt/pdt%s-main.cc" % operation,
-        ],
+        srcs = [prefix_dir + "extensions/pdt/pdt%s.cc" % operation],
         linkstatic = static_binary,
         deps = [":pdtscript"],
     )
@@ -937,10 +886,7 @@ cc_library(
 
 cc_binary(
     name = "mpdtcompose",
-    srcs = [
-        prefix_dir + "extensions/mpdt/mpdtcompose.cc",
-        prefix_dir + "extensions/mpdt/mpdtcompose-main.cc",
-    ],
+    srcs = [prefix_dir + "extensions/mpdt/mpdtcompose.cc"],
     linkstatic = static_binary,
     deps = [
         ":fstscript_connect",
@@ -951,10 +897,7 @@ cc_binary(
 [
     cc_binary(
         name = "mpdt%s" % operation,
-        srcs = [
-            prefix_dir + "extensions/mpdt/mpdt%s.cc" % operation,
-            prefix_dir + "extensions/mpdt/mpdt%s-main.cc" % operation,
-        ],
+        srcs = [prefix_dir + "extensions/mpdt/mpdt%s.cc" % operation],
         linkstatic = static_binary,
         deps = [":mpdtscript"],
     )
@@ -985,206 +928,4 @@ cc_library(
     ],
 )
 
-# Extension: Compact FSTs and FSAs (extensions/compact)
-
-[
-    cc_library(
-        name = "%s-fst" % type,
-        srcs = [
-            prefix_dir + "extensions/compact/%s-fst.cc" % type,
-        ],
-        linkstatic = 1,
-        deps = [":fst"],
-    )
-    for type in [
-        "compact16_acceptor",
-        "compact16_string",
-        "compact16_unweighted",
-        "compact16_unweighted_acceptor",
-        "compact16_weighted_string",
-        "compact64_acceptor",
-        "compact64_string",
-        "compact64_unweighted",
-        "compact64_unweighted_acceptor",
-        "compact64_weighted_string",
-        "compact8_acceptor",
-        "compact8_string",
-        "compact8_unweighted",
-        "compact8_unweighted_acceptor",
-        "compact8_weighted_string",
-    ]
-]
-
-# Extension: Compressed FSTs (extensions/compress)
-
-cc_library(
-    name = "compress-fst",
-    hdrs = [
-        prefix_dir + "include/fst/extensions/compress/compress.h",
-        prefix_dir + "include/fst/extensions/compress/elias.h",
-    ],
-    includes = [prefix_dir + "include"],
-    deps = [
-        ":fst",
-    ],
-)
-
-cc_library(
-    name = "compressscript",
-    srcs = [
-        prefix_dir + "extensions/compress/compressscript.cc",
-    ],
-    hdrs = [
-        prefix_dir + "include/fst/extensions/compress/compressscript.h",
-    ],
-    includes = [prefix_dir + "include"],
-    deps = [
-        ":base",
-        ":compress-fst",
-        ":fstscript_base",
-    ],
-)
-
-cc_binary(
-    name = "fstcompress",
-    srcs = [
-        prefix_dir + "extensions/compress/fstcompress.cc",
-        prefix_dir + "extensions/compress/fstcompress-main.cc",
-    ],
-    linkstatic = static_binary,
-    deps = [":compressscript"],
-)
-
-# Extension: Constant FSTs (extensions/const)
-
-[
-    cc_library(
-        name = "const%s-fst" % type,
-        srcs = [
-            prefix_dir + "extensions/const/const%s-fst.cc" % type,
-        ],
-        linkstatic = 1,
-        deps = [":fst"],
-    )
-    for type in [
-        "8",
-        "16",
-        "64",
-    ]
-]
-
-# Extension: Linear FSTs (extensions/linear)
-
-cc_library(
-    name = "linear-fst",
-    srcs = [
-        prefix_dir + "extensions/linear/linear-classifier-fst.cc",
-        prefix_dir + "extensions/linear/linear-tagger-fst.cc",
-    ],
-    hdrs = [
-        prefix_dir + "include/fst/extensions/linear/linear-fst-data-builder.h",
-        prefix_dir + "include/fst/extensions/linear/linear-fst-data.h",
-        prefix_dir + "include/fst/extensions/linear/linear-fst.h",
-        prefix_dir + "include/fst/extensions/linear/loglinear-apply.h",
-        prefix_dir + "include/fst/extensions/linear/trie.h",
-    ],
-    linkstatic = 1,
-    deps = [
-        ":fst",
-        ":pdt",
-    ],
-)
-
-cc_library(
-    name = "linearscript",
-    srcs = [
-        prefix_dir + "extensions/linear/linearscript.cc",
-    ],
-    hdrs = [
-        prefix_dir + "include/fst/extensions/linear/linearscript.h",
-    ],
-    includes = [prefix_dir + "include"],
-    deps = [
-        ":base",
-        ":fstscript_base",
-        ":linear-fst",
-        ":pdt",
-    ],
-)
-
-[
-    cc_binary(
-        name = "fst%s" % name,
-        srcs = [
-            prefix_dir + "extensions/linear/fst%s.cc" % name,
-            prefix_dir + "extensions/linear/fst%s-main.cc" % name,
-        ],
-        linkstatic = static_binary,
-        deps = [":linearscript"],
-    )
-    for name in [
-        "linear",
-        "loglinearapply",
-    ]
-]
-
-# Extension: Lookahead FSTs (extensions/lookahead)
-
-[
-    cc_library(
-        name = "%s_lookahead-fst" % type,
-        srcs = [
-            prefix_dir + "extensions/lookahead/%s_lookahead-fst.cc" % type,
-        ],
-        linkstatic = 1,
-        deps = [":fst"],
-    )
-    for type in [
-        "arc",
-        "ilabel",
-        "olabel",
-    ]
-]
-
-# Extension: Special FSTs (extensions/special)
-
-[
-    cc_library(
-        name = "%s-fst" % type,
-        srcs = [
-            prefix_dir + "include/fst/extensions/special/%s-fst.h" % type,
-        ],
-        hdrs = [
-            prefix_dir + "extensions/special/%s-fst.cc" % type,
-        ],
-        linkstatic = 1,
-        deps = [":fst"],
-    )
-    for type in [
-        "phi",
-        "rho",
-        "sigma",
-    ]
-]
-
-cc_binary(
-    name = "fstspecial",
-    srcs = [
-        prefix_dir + "bin/fstconvert.cc",
-        prefix_dir + "bin/fstconvert-main.cc",
-    ],
-    linkstatic = static_binary,
-    deps = [
-        ":fstscript_convert",
-        ":phi-fst",
-        ":rho-fst",
-        ":sigma-fst",
-    ],
-)
-
-# Miscellaneous helper Build rules.
-exports_files([
-    prefix_dir + "extensions/far/build_defs.bzl",
-])
-
-# TODO: Extensions: python
+# TODO: Extensions compact, compress, const, linear, lookahead, python, special

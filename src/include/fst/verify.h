@@ -1,17 +1,3 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -20,24 +6,24 @@
 #ifndef FST_VERIFY_H_
 #define FST_VERIFY_H_
 
-#include <cstddef>
-#include <cstdint>
-
 #include <fst/log.h>
-#include <fst/expanded-fst.h>
+
 #include <fst/fst.h>
-#include <fst/properties.h>
 #include <fst/test-properties.h>
+
 
 namespace fst {
 
 // Verifies that an Fst's contents are sane.
 template <class Arc>
 bool Verify(const Fst<Arc> &fst, bool allow_negative_labels = false) {
+  using StateId = typename Arc::StateId;
   const auto start = fst.Start();
   const auto *isyms = fst.InputSymbols();
   const auto *osyms = fst.OutputSymbols();
-  const auto ns = CountStates(fst);
+  // Count states
+  StateId ns = 0;
+  for (StateIterator<Fst<Arc>> siter(fst); !siter.Done(); siter.Next()) ++ns;
   if (start == kNoStateId && ns > 0) {
     LOG(ERROR) << "Verify: FST start state ID not set";
     return false;
@@ -54,7 +40,7 @@ bool Verify(const Fst<Arc> &fst, bool allow_negative_labels = false) {
         LOG(ERROR) << "Verify: FST input label ID of arc at position " << na
                    << " of state " << state << " is negative";
         return false;
-      } else if (isyms && !isyms->Member(arc.ilabel)) {
+      } else if (isyms && isyms->Find(arc.ilabel).empty()) {
         LOG(ERROR) << "Verify: FST input label ID " << arc.ilabel
                    << " of arc at position " << na << " of state " << state
                    << " is missing from input symbol table \"" << isyms->Name()
@@ -64,7 +50,7 @@ bool Verify(const Fst<Arc> &fst, bool allow_negative_labels = false) {
         LOG(ERROR) << "Verify: FST output label ID of arc at position " << na
                    << " of state " << state << " is negative";
         return false;
-      } else if (osyms && !osyms->Member(arc.olabel)) {
+      } else if (osyms && osyms->Find(arc.olabel).empty()) {
         LOG(ERROR) << "Verify: FST output label ID " << arc.olabel
                    << " of arc at position " << na << " of state " << state
                    << " is missing from output symbol table \"" << osyms->Name()
@@ -92,15 +78,15 @@ bool Verify(const Fst<Arc> &fst, bool allow_negative_labels = false) {
       return false;
     }
   }
-  const auto fst_props = fst.Properties(kFstProperties, /*test=*/false);
+  const auto fst_props = fst.Properties(kFstProperties, false);
   if (fst_props & kError) {
     LOG(ERROR) << "Verify: FST error property is set";
     return false;
   }
-  uint64_t known_props;
-  uint64_t test_props =
-      internal::ComputeProperties(fst, kFstProperties, &known_props);
-  if (!internal::CompatProperties(fst_props, test_props)) {
+  uint64 known_props;
+  uint64 test_props =
+      ComputeProperties(fst, kFstProperties, &known_props, false);
+  if (!CompatProperties(fst_props, test_props)) {
     LOG(ERROR) << "Verify: Stored FST properties incorrect "
                << "(props1 = stored props, props2 = tested)";
     return false;

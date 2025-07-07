@@ -1,37 +1,14 @@
-// Copyright 2005-2024 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the 'License');
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an 'AS IS' BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
 #ifndef FST_SCRIPT_RMEPSILON_H_
 #define FST_SCRIPT_RMEPSILON_H_
 
-#include <cstdint>
 #include <utility>
 #include <vector>
 
-#include <fst/log.h>
-#include <fst/arcfilter.h>
-#include <fst/fst.h>
-#include <fst/mutable-fst.h>
-#include <fst/properties.h>
 #include <fst/queue.h>
 #include <fst/rmepsilon.h>
-#include <fst/util.h>
-#include <fst/weight.h>
-#include <fst/script/arcfilter-impl.h>
 #include <fst/script/fst-class.h>
 #include <fst/script/shortest-distance.h>
 #include <fst/script/weight-class.h>
@@ -42,12 +19,12 @@ namespace script {
 struct RmEpsilonOptions : public ShortestDistanceOptions {
   const bool connect;
   const WeightClass &weight_threshold;
-  const int64_t state_threshold;
+  const int64 state_threshold;
 
   RmEpsilonOptions(QueueType queue_type, bool connect,
                    const WeightClass &weight_threshold,
-                   int64_t state_threshold = kNoStateId, float delta = kDelta)
-      : ShortestDistanceOptions(queue_type, ArcFilterType::EPSILON, kNoStateId,
+                   int64 state_threshold = kNoStateId, float delta = kDelta)
+      : ShortestDistanceOptions(queue_type, EPSILON_ARC_FILTER, kNoStateId,
                                 delta),
         connect(connect),
         weight_threshold(weight_threshold),
@@ -91,14 +68,8 @@ void RmEpsilon(MutableFst<Arc> *fst, const RmEpsilonOptions &opts) {
       return;
     }
     case SHORTEST_FIRST_QUEUE: {
-      if constexpr (IsIdempotent<Weight>::value) {
-        NaturalShortestFirstQueue<StateId, Weight> queue(distance);
-        RmEpsilon(fst, &distance, opts, &queue);
-      } else {
-        FSTERROR() << "RmEpsilon: Bad queue type SHORTEST_FIRST_QUEUE for"
-                   << " non-idempotent Weight " << Weight::Type();
-        fst->SetProperties(kError, kError);
-      }
+      NaturalShortestFirstQueue<StateId, Weight> queue(distance);
+      RmEpsilon(fst, &distance, opts, &queue);
       return;
     }
     case STATE_ORDER_QUEUE: {
@@ -121,10 +92,10 @@ void RmEpsilon(MutableFst<Arc> *fst, const RmEpsilonOptions &opts) {
 
 }  // namespace internal
 
-using FstRmEpsilonArgs = std::pair<MutableFstClass *, const RmEpsilonOptions &>;
+using RmEpsilonArgs = std::pair<MutableFstClass *, const RmEpsilonOptions &>;
 
 template <class Arc>
-void RmEpsilon(FstRmEpsilonArgs *args) {
+void RmEpsilon(RmEpsilonArgs *args) {
   MutableFst<Arc> *fst = std::get<0>(*args)->GetMutableFst<Arc>();
   const auto &opts = std::get<1>(*args);
   internal::RmEpsilon(fst, opts);
