@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -10,34 +24,40 @@ REGISTER_FST_WEIGHT(StdArc::Weight);
 REGISTER_FST_WEIGHT(LogArc::Weight);
 REGISTER_FST_WEIGHT(Log64Arc::Weight);
 
-WeightClass::WeightClass(const string &weight_type, const string &weight_str) {
-  WeightClassRegister *reg = WeightClassRegister::GetRegister();
-  StrToWeightImplBaseT stw = reg->GetEntry(weight_type);
+WeightClass::WeightClass(const std::string &weight_type,
+                         const std::string &weight_str) {
+  static const auto *reg = WeightClassRegister::GetRegister();
+  const auto stw = reg->GetEntry(weight_type);
   if (!stw) {
-    FSTERROR() << "Unknown weight type: " << weight_type;
+    FSTERROR() << "WeightClass: Unknown weight type: " << weight_type;
     impl_.reset();
     return;
   }
-  impl_.reset(stw(weight_str, "WeightClass", 0));
+  impl_.reset(stw(weight_str));
 }
 
-WeightClass WeightClass::Zero(const string &weight_type) {
+constexpr char WeightClass::__ZERO__[];
+constexpr char WeightClass::__ONE__[];
+constexpr char WeightClass::__NOWEIGHT__[];
+
+WeightClass WeightClass::Zero(const std::string &weight_type) {
   return WeightClass(weight_type, __ZERO__);
 }
 
-WeightClass WeightClass::One(const string &weight_type) {
+WeightClass WeightClass::One(const std::string &weight_type) {
   return WeightClass(weight_type, __ONE__);
 }
 
-WeightClass WeightClass::NoWeight(const string &weight_type) {
+WeightClass WeightClass::NoWeight(const std::string &weight_type) {
   return WeightClass(weight_type, __NOWEIGHT__);
 }
 
-bool WeightClass::WeightTypesMatch(const WeightClass &other,
-                                   const string &op_name) const {
-  if (Type() != other.Type()) {
-    FSTERROR() << "Weights with non-matching types passed to " << op_name
-               << ": " << Type() << " and " << other.Type();
+bool WeightClass::WeightTypesMatch(const WeightClass &lhs,
+                                   const WeightClass &rhs,
+                                   const std::string &op_name) {
+  if (lhs.Type() != rhs.Type()) {
+    FSTERROR() << op_name << ": Weights with non-matching types: " << lhs.Type()
+               << " and " << rhs.Type();
     return false;
   }
   return true;
@@ -46,7 +66,8 @@ bool WeightClass::WeightTypesMatch(const WeightClass &other,
 bool operator==(const WeightClass &lhs, const WeightClass &rhs) {
   const auto *lhs_impl = lhs.GetImpl();
   const auto *rhs_impl = rhs.GetImpl();
-  if (!(lhs_impl && rhs_impl && lhs.WeightTypesMatch(rhs, "operator=="))) {
+  if (!(lhs_impl && rhs_impl &&
+        WeightClass::WeightTypesMatch(lhs, rhs, "operator=="))) {
     return false;
   }
   return *lhs_impl == *rhs_impl;
@@ -58,7 +79,8 @@ bool operator!=(const WeightClass &lhs, const WeightClass &rhs) {
 
 WeightClass Plus(const WeightClass &lhs, const WeightClass &rhs) {
   const auto *rhs_impl = rhs.GetImpl();
-  if (!(lhs.GetImpl() && rhs_impl && lhs.WeightTypesMatch(rhs, "Plus"))) {
+  if (!(lhs.GetImpl() && rhs_impl &&
+        WeightClass::WeightTypesMatch(lhs, rhs, "Plus"))) {
     return WeightClass();
   }
   WeightClass result(lhs);
@@ -68,7 +90,8 @@ WeightClass Plus(const WeightClass &lhs, const WeightClass &rhs) {
 
 WeightClass Times(const WeightClass &lhs, const WeightClass &rhs) {
   const auto *rhs_impl = rhs.GetImpl();
-  if (!(lhs.GetImpl() && rhs_impl && lhs.WeightTypesMatch(rhs, "Plus"))) {
+  if (!(lhs.GetImpl() && rhs_impl &&
+        WeightClass::WeightTypesMatch(lhs, rhs, "Times"))) {
     return WeightClass();
   }
   WeightClass result(lhs);
@@ -78,7 +101,8 @@ WeightClass Times(const WeightClass &lhs, const WeightClass &rhs) {
 
 WeightClass Divide(const WeightClass &lhs, const WeightClass &rhs) {
   const auto *rhs_impl = rhs.GetImpl();
-  if (!(lhs.GetImpl() && rhs_impl && lhs.WeightTypesMatch(rhs, "Divide"))) {
+  if (!(lhs.GetImpl() && rhs_impl &&
+        WeightClass::WeightTypesMatch(lhs, rhs, "Divide"))) {
     return WeightClass();
   }
   WeightClass result(lhs);

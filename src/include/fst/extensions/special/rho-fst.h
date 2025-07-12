@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -29,7 +43,7 @@ class RhoFstMatcherData {
       : rho_label_(data.rho_label_), rewrite_mode_(data.rewrite_mode_) {}
 
   static RhoFstMatcherData<Label> *Read(std::istream &istrm,
-                                    const FstReadOptions &read) {
+                                        const FstReadOptions &read) {
     auto *data = new RhoFstMatcherData<Label>();
     ReadType(istrm, &data->rho_label_);
     int32 rewrite_mode;
@@ -49,7 +63,7 @@ class RhoFstMatcherData {
   MatcherRewriteMode RewriteMode() const { return rewrite_mode_; }
 
  private:
-  static MatcherRewriteMode RewriteMode(const string &mode) {
+  static MatcherRewriteMode RewriteMode(const std::string &mode) {
     if (mode == "auto") return MATCHER_REWRITE_AUTO;
     if (mode == "always") return MATCHER_REWRITE_ALWAYS;
     if (mode == "never") return MATCHER_REWRITE_NEVER;
@@ -125,47 +139,28 @@ extern const char rho_fst_type[];
 extern const char input_rho_fst_type[];
 extern const char output_rho_fst_type[];
 
-using StdRhoFst =
-    MatcherFst<ConstFst<StdArc>, RhoFstMatcher<SortedMatcher<ConstFst<StdArc>>>,
+template <class Arc>
+using RhoFst =
+    MatcherFst<ConstFst<Arc>, RhoFstMatcher<SortedMatcher<ConstFst<Arc>>>,
                rho_fst_type>;
 
-using LogRhoFst =
-    MatcherFst<ConstFst<LogArc>, RhoFstMatcher<SortedMatcher<ConstFst<LogArc>>>,
-               rho_fst_type>;
+using StdRhoFst = RhoFst<StdArc>;
 
-using Log64RhoFst = MatcherFst<ConstFst<Log64Arc>,
-                               RhoFstMatcher<SortedMatcher<ConstFst<Log64Arc>>>,
-                               input_rho_fst_type>;
-
-using StdInputRhoFst =
-    MatcherFst<ConstFst<StdArc>, RhoFstMatcher<SortedMatcher<ConstFst<StdArc>>,
-                                               kRhoFstMatchInput>,
+template <class Arc>
+using InputRhoFst =
+    MatcherFst<ConstFst<Arc>,
+               RhoFstMatcher<SortedMatcher<ConstFst<Arc>>, kRhoFstMatchInput>,
                input_rho_fst_type>;
 
-using LogInputRhoFst =
-    MatcherFst<ConstFst<LogArc>, RhoFstMatcher<SortedMatcher<ConstFst<LogArc>>,
-                                               kRhoFstMatchInput>,
-               input_rho_fst_type>;
+using StdInputRhoFst = InputRhoFst<StdArc>;
 
-using Log64InputRhoFst = MatcherFst<
-    ConstFst<Log64Arc>,
-    RhoFstMatcher<SortedMatcher<ConstFst<Log64Arc>>, kRhoFstMatchInput>,
-    input_rho_fst_type>;
-
-using StdOutputRhoFst =
-    MatcherFst<ConstFst<StdArc>, RhoFstMatcher<SortedMatcher<ConstFst<StdArc>>,
-                                               kRhoFstMatchOutput>,
+template <class Arc>
+using OutputRhoFst =
+    MatcherFst<ConstFst<Arc>,
+               RhoFstMatcher<SortedMatcher<ConstFst<Arc>>, kRhoFstMatchOutput>,
                output_rho_fst_type>;
 
-using LogOutputRhoFst =
-    MatcherFst<ConstFst<LogArc>, RhoFstMatcher<SortedMatcher<ConstFst<LogArc>>,
-                                               kRhoFstMatchOutput>,
-               output_rho_fst_type>;
-
-using Log64OutputRhoFst = MatcherFst<
-    ConstFst<Log64Arc>,
-    RhoFstMatcher<SortedMatcher<ConstFst<Log64Arc>>, kRhoFstMatchOutput>,
-    output_rho_fst_type>;
+using StdOutputRhoFst = OutputRhoFst<StdArc>;
 
 }  // namespace fst
 

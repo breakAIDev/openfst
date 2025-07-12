@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -20,16 +34,17 @@ namespace internal {
 template <class Label>
 class SigmaFstMatcherData {
  public:
-  explicit SigmaFstMatcherData(Label sigma_label = FLAGS_sigma_fst_sigma_label,
+  explicit SigmaFstMatcherData(
+      Label sigma_label = FLAGS_sigma_fst_sigma_label,
       MatcherRewriteMode rewrite_mode =
-                          RewriteMode(FLAGS_sigma_fst_rewrite_mode))
+          RewriteMode(FLAGS_sigma_fst_rewrite_mode))
       : sigma_label_(sigma_label), rewrite_mode_(rewrite_mode) {}
 
   SigmaFstMatcherData(const SigmaFstMatcherData &data)
       : sigma_label_(data.sigma_label_), rewrite_mode_(data.rewrite_mode_) {}
 
   static SigmaFstMatcherData<Label> *Read(std::istream &istrm,
-                                      const FstReadOptions &read) {
+                                          const FstReadOptions &read) {
     auto *data = new SigmaFstMatcherData<Label>();
     ReadType(istrm, &data->sigma_label_);
     int32 rewrite_mode;
@@ -49,7 +64,7 @@ class SigmaFstMatcherData {
   MatcherRewriteMode RewriteMode() const { return rewrite_mode_; }
 
  private:
-  static MatcherRewriteMode RewriteMode(const string &mode) {
+  static MatcherRewriteMode RewriteMode(const std::string &mode) {
     if (mode == "auto") return MATCHER_REWRITE_AUTO;
     if (mode == "always") return MATCHER_REWRITE_ALWAYS;
     if (mode == "never") return MATCHER_REWRITE_NEVER;
@@ -128,48 +143,28 @@ extern const char sigma_fst_type[];
 extern const char input_sigma_fst_type[];
 extern const char output_sigma_fst_type[];
 
-using StdSigmaFst = MatcherFst<ConstFst<StdArc>,
-                               SigmaFstMatcher<SortedMatcher<ConstFst<StdArc>>>,
-                               sigma_fst_type>;
+template <class Arc>
+using SigmaFst =
+    MatcherFst<ConstFst<Arc>, SigmaFstMatcher<SortedMatcher<ConstFst<Arc>>>,
+               sigma_fst_type>;
 
-using LogSigmaFst = MatcherFst<ConstFst<LogArc>,
-                               SigmaFstMatcher<SortedMatcher<ConstFst<LogArc>>>,
-                               sigma_fst_type>;
+using StdSigmaFst = SigmaFst<StdArc>;
 
-using Log64SigmaFst =
-    MatcherFst<ConstFst<Log64Arc>,
-               SigmaFstMatcher<SortedMatcher<ConstFst<Log64Arc>>>,
-               input_sigma_fst_type>;
-
-using StdInputSigmaFst = MatcherFst<
-    ConstFst<StdArc>,
-    SigmaFstMatcher<SortedMatcher<ConstFst<StdArc>>, kSigmaFstMatchInput>,
+template <class Arc>
+using InputSigmaFst = MatcherFst<
+    ConstFst<Arc>,
+    SigmaFstMatcher<SortedMatcher<ConstFst<Arc>>, kSigmaFstMatchInput>,
     input_sigma_fst_type>;
 
-using LogInputSigmaFst = MatcherFst<
-    ConstFst<LogArc>,
-    SigmaFstMatcher<SortedMatcher<ConstFst<LogArc>>, kSigmaFstMatchInput>,
-    input_sigma_fst_type>;
+using StdInputSigmaFst = InputSigmaFst<StdArc>;
 
-using Log64InputSigmaFst = MatcherFst<
-    ConstFst<Log64Arc>,
-    SigmaFstMatcher<SortedMatcher<ConstFst<Log64Arc>>, kSigmaFstMatchInput>,
-    input_sigma_fst_type>;
-
-using StdOutputSigmaFst = MatcherFst<
-    ConstFst<StdArc>,
-    SigmaFstMatcher<SortedMatcher<ConstFst<StdArc>>, kSigmaFstMatchOutput>,
+template <class Arc>
+using OutputSigmaFst = MatcherFst<
+    ConstFst<Arc>,
+    SigmaFstMatcher<SortedMatcher<ConstFst<Arc>>, kSigmaFstMatchOutput>,
     output_sigma_fst_type>;
 
-using LogOutputSigmaFst = MatcherFst<
-    ConstFst<LogArc>,
-    SigmaFstMatcher<SortedMatcher<ConstFst<LogArc>>, kSigmaFstMatchOutput>,
-    output_sigma_fst_type>;
-
-using Log64OutputSigmaFst = MatcherFst<
-    ConstFst<Log64Arc>,
-    SigmaFstMatcher<SortedMatcher<ConstFst<Log64Arc>>, kSigmaFstMatchOutput>,
-    output_sigma_fst_type>;
+using StdOutputSigmaFst = OutputSigmaFst<StdArc>;
 
 }  // namespace fst
 

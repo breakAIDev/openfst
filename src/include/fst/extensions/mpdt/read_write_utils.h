@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -18,13 +32,13 @@ namespace fst {
 
 // Returns true on success.
 template <typename Label>
-bool ReadLabelTriples(const string &filename,
+bool ReadLabelTriples(const std::string &source,
                       std::vector<std::pair<Label, Label>> *pairs,
                       std::vector<Label> *assignments,
                       bool allow_negative = false) {
-  std::ifstream fstrm(filename);
+  std::ifstream fstrm(source);
   if (!fstrm) {
-    LOG(ERROR) << "ReadIntTriples: Can't open file: " << filename;
+    LOG(ERROR) << "ReadIntTriples: Can't open file: " << source;
     return false;
   }
   static constexpr auto kLineLen = 8096;
@@ -39,16 +53,16 @@ bool ReadLabelTriples(const string &filename,
     if (col.empty() || col[0][0] == '\0' || col[0][0] == '#') continue;
     if (col.size() != 3) {
       LOG(ERROR) << "ReadLabelTriples: Bad number of columns, "
-                 << "file = " << filename << ", line = " << nline;
+                 << "file = " << source << ", line = " << nline;
       return false;
     }
     bool err;
-    const Label i1 = StrToInt64(col[0], filename, nline, allow_negative, &err);
+    const Label i1 = StrToInt64(col[0], source, nline, allow_negative, &err);
     if (err) return false;
-    const Label i2 = StrToInt64(col[1], filename, nline, allow_negative, &err);
+    const Label i2 = StrToInt64(col[1], source, nline, allow_negative, &err);
     if (err) return false;
     using Level = Label;
-    const Level i3 = StrToInt64(col[2], filename, nline, allow_negative, &err);
+    const Level i3 = StrToInt64(col[2], source, nline, allow_negative, &err);
     if (err) return false;
     pairs->push_back(std::make_pair(i1, i2));
     assignments->push_back(i3);
@@ -58,16 +72,16 @@ bool ReadLabelTriples(const string &filename,
 
 // Returns true on success.
 template <typename Label>
-bool WriteLabelTriples(const string &filename,
+bool WriteLabelTriples(const std::string &source,
                        const std::vector<std::pair<Label, Label>> &pairs,
                        const std::vector<Label> &assignments) {
   if (pairs.size() != assignments.size()) {
     LOG(ERROR) << "WriteLabelTriples: Pairs and assignments of different sizes";
     return false;
   }
-  std::ofstream fstrm(filename);
+  std::ofstream fstrm(source);
   if (!fstrm) {
-    LOG(ERROR) << "WriteLabelTriples: Can't open file: " << filename;
+    LOG(ERROR) << "WriteLabelTriples: Can't open file: " << source;
     return false;
   }
   for (size_t n = 0; n < pairs.size(); ++n)
@@ -75,7 +89,7 @@ bool WriteLabelTriples(const string &filename,
           << "\n";
   if (!fstrm) {
     LOG(ERROR) << "WriteLabelTriples: Write failed: "
-               << (filename.empty() ? "standard output" : filename);
+               << (source.empty() ? "standard output" : source);
     return false;
   }
   return true;

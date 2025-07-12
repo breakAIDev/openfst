@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -9,8 +23,10 @@
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
+#include <fst/types.h>
 #include <fst/log.h>
 
 #include <fst/connect.h>
@@ -56,9 +72,8 @@ struct ReplaceUtilOptions {
 
   // For backwards compatibility.
   ReplaceUtilOptions(int64 root, bool epsilon_replace_arc)
-      : ReplaceUtilOptions(root,
-                           epsilon_replace_arc ? REPLACE_LABEL_NEITHER
-                                               : REPLACE_LABEL_INPUT) {}
+      : ReplaceUtilOptions(root, epsilon_replace_arc ? REPLACE_LABEL_NEITHER
+                                                     : REPLACE_LABEL_INPUT) {}
 };
 
 // Every non-terminal on a path appears as the first label on that path in every
@@ -325,36 +340,35 @@ void ReplaceUtil<Arc>::GetDependencies(bool stats) const {
   }
   have_stats_ = stats;
   if (have_stats_) stats_.reserve(fst_array_.size());
-  for (Label i = 0; i < fst_array_.size(); ++i) {
+  for (Label ilabel = 0; ilabel < fst_array_.size(); ++ilabel) {
     depfst_.AddState();
-    depfst_.SetFinal(i, Weight::One());
+    depfst_.SetFinal(ilabel);
     if (have_stats_) stats_.push_back(ReplaceStats());
   }
   depfst_.SetStart(root_fst_);
   // An arc from each state (representing the FST) to the state representing the
   // FST being replaced
-  for (Label i = 0; i < fst_array_.size(); ++i) {
-    const auto *ifst = fst_array_[i];
+  for (Label ilabel = 0; ilabel < fst_array_.size(); ++ilabel) {
+    const auto *ifst = fst_array_[ilabel];
     if (!ifst) continue;
     for (StateIterator<Fst<Arc>> siter(*ifst); !siter.Done(); siter.Next()) {
       const auto s = siter.Value();
       if (have_stats_) {
-        ++stats_[i].nstates;
-        if (ifst->Final(s) != Weight::Zero()) ++stats_[i].nfinal;
+        ++stats_[ilabel].nstates;
+        if (ifst->Final(s) != Weight::Zero()) ++stats_[ilabel].nfinal;
       }
-      for (ArcIterator<Fst<Arc>> aiter(*ifst, s); !aiter.Done();
-           aiter.Next()) {
-        if (have_stats_) ++stats_[i].narcs;
+      for (ArcIterator<Fst<Arc>> aiter(*ifst, s); !aiter.Done(); aiter.Next()) {
+        if (have_stats_) ++stats_[ilabel].narcs;
         const auto &arc = aiter.Value();
         auto it = nonterminal_hash_.find(arc.olabel);
         if (it != nonterminal_hash_.end()) {
-          const auto j = it->second;
-          depfst_.EmplaceArc(i, arc.olabel, arc.olabel, Weight::One(), j);
+          const auto nextstate = it->second;
+          depfst_.EmplaceArc(ilabel, arc.olabel, arc.olabel, nextstate);
           if (have_stats_) {
-            ++stats_[i].nnonterms;
-            ++stats_[j].nref;
-            ++stats_[j].inref[i];
-            ++stats_[i].outref[j];
+            ++stats_[ilabel].nnonterms;
+            ++stats_[nextstate].nref;
+            ++stats_[nextstate].inref[ilabel];
+            ++stats_[ilabel].outref[nextstate];
           }
         }
       }
@@ -492,12 +506,12 @@ void ReplaceUtil<Arc>::ReplaceLabels(const std::vector<Label> &labels) {
       const auto &arc = aiter.Value();
       const auto label = nonterminal_array_[arc.nextstate];
       const auto *fst = fst_array_[arc.nextstate];
-      fst_pairs.push_back(std::make_pair(label, fst));
+      fst_pairs.emplace_back(label, fst);
     }
     if (fst_pairs.empty()) continue;
     const auto label = nonterminal_array_[s];
     const auto *fst = fst_array_[s];
-    fst_pairs.push_back(std::make_pair(label, fst));
+    fst_pairs.emplace_back(label, fst);
     const ReplaceUtilOptions opts(label, call_label_type_, return_label_type_,
                                   return_label_);
     Replace(fst_pairs, mutable_fst_array_[s], opts);
@@ -553,7 +567,7 @@ void ReplaceUtil<Arc>::GetFstPairs(std::vector<FstPair> *fst_pairs) {
     const auto label = nonterminal_array_[i];
     const auto *fst = fst_array_[i];
     if (!fst) continue;
-    fst_pairs->push_back(std::make_pair(label, fst));
+    fst_pairs->emplace_back(label, fst);
   }
 }
 
@@ -566,7 +580,7 @@ void ReplaceUtil<Arc>::GetMutableFstPairs(
     const auto label = nonterminal_array_[i];
     const auto *fst = mutable_fst_array_[i];
     if (!fst) continue;
-    mutable_fst_pairs->push_back(std::make_pair(label, fst->Copy()));
+    mutable_fst_pairs->emplace_back(label, fst->Copy());
   }
 }
 
@@ -581,8 +595,8 @@ void ReplaceUtil<Arc>::GetSCCProperties() const {
   if (!(depprops_ & kCyclic)) return;  // No cyclic dependencies.
   // Checks for self-loops in the dependency graph.
   for (StateId scc = 0; scc < depscc_.size(); ++scc) {
-    for (ArcIterator<Fst<Arc> > aiter(depfst_, scc);
-         !aiter.Done(); aiter.Next()) {
+    for (ArcIterator<Fst<Arc>> aiter(depfst_, scc); !aiter.Done();
+         aiter.Next()) {
       const auto &arc = aiter.Value();
       if (arc.nextstate == scc) {  // SCC has a self loop.
         depsccprops_[scc] |= kReplaceSCCNonTrivial;

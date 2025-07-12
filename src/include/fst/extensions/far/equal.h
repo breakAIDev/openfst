@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -13,17 +27,18 @@
 namespace fst {
 
 template <class Arc>
-bool FarEqual(const string &filename1, const string &filename2,
-              float delta = kDelta, const string &begin_key = string(),
-              const string &end_key = string()) {
-  std::unique_ptr<FarReader<Arc>> reader1(FarReader<Arc>::Open(filename1));
+bool FarEqual(const std::string &source1, const std::string &source2,
+              float delta = kDelta,
+              const std::string &begin_key = std::string(),
+              const std::string &end_key = std::string()) {
+  std::unique_ptr<FarReader<Arc>> reader1(FarReader<Arc>::Open(source1));
   if (!reader1) {
-    LOG(ERROR) << "FarEqual: Could not open FAR file " << filename1;
+    LOG(ERROR) << "FarEqual: Could not open FAR file " << source1;
     return false;
   }
-  std::unique_ptr<FarReader<Arc>> reader2(FarReader<Arc>::Open(filename2));
+  std::unique_ptr<FarReader<Arc>> reader2(FarReader<Arc>::Open(source2));
   if (!reader2) {
-    LOG(ERROR) << "FarEqual: Could not open FAR file " << filename2;
+    LOG(ERROR) << "FarEqual: Could not open FAR file " << source2;
     return false;
   }
   if (!begin_key.empty()) {

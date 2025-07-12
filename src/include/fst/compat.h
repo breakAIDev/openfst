@@ -20,14 +20,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
-
-// Makes copy constructor and operator= private
-// Deprecated: now just use =delete.
-#define DISALLOW_COPY_AND_ASSIGN(type)    \
-  type(const type&);                      \
-  void operator=(const type&)
 
 #if defined(__GNUC__) || defined(__clang__)
 #define OPENFST_DEPRECATED(message) __attribute__((deprecated(message)))
@@ -44,40 +41,21 @@
 #include <fst/log.h>
 #include <fst/icu.h>
 
-using std::string;
-
 void FailedNewHandler();
-
-#ifdef _MSC_VER
-#include <intrin.h>
-const char* basename(const char* path);
-#define __builtin_popcount __popcnt
-
-#ifdef _M_X64
-// Using 64-bit MSVC intrinsics.
-#define __builtin_popcountll __popcnt64
-inline unsigned int __builtin_ctzll(std::uint64_t w) {
-  unsigned long v;
-  return _BitScanForward64(&v, std::uint32_t(w)) ? v : 0;
-}
-#else
-// Using 32-bit MSVC intrinsics.
-inline unsigned int __builtin_popcountll(std::uint64_t w) {
-  return __popcnt(std::uint32_t(w)) + __popcnt(std::uint32_t(w >> 32));
-}
-inline unsigned int __builtin_ctzll(std::uint64_t w) {
-  unsigned long v;
-  return (_BitScanForward(&v, std::uint32_t(w)) ? v :
-          _BitScanForward(&v, std::uint32_t(w >> 32)) ? v + 32 : 0);
-}
-#endif  // _M_X64
-#endif  // _MSC_VER
 
 namespace fst {
 
 // Downcasting.
-template<typename To, typename From>
-inline To down_cast(From* f) { return static_cast<To>(f); }
+
+template <typename To, typename From>
+inline To down_cast(From *f) {
+  return static_cast<To>(f);
+}
+
+template <typename To, typename From>
+inline To down_cast(From &f) {
+  return static_cast<To>(f);
+}
 
 // Bitcasting.
 template <class Dest, class Source>
@@ -89,41 +67,130 @@ inline Dest bit_cast(const Source &source) {
   return dest;
 }
 
-// Check sums
+namespace internal {
+
+template <typename T>
+struct identity {
+  typedef T type;
+};
+
+template <typename T>
+using identity_t = typename identity<T>::type;
+
+}  // namespace internal
+
+template <typename To>
+constexpr To implicit_cast(typename internal::identity_t<To> to) {
+  return to;
+}
+
+// Checksums.
 class CheckSummer {
  public:
-  CheckSummer() : count_(0) {
-    check_sum_.resize(kCheckSumLength, '\0');
-  }
+  CheckSummer();
 
-  void Reset() {
-    count_ = 0;
-    for (int i = 0; i < kCheckSumLength; ++i) check_sum_[i] = '\0';
-  }
+  void Reset();
 
-  void Update(void const *data, int size) {
-    const char *p = reinterpret_cast<const char *>(data);
-    for (int i = 0; i < size; ++i) {
-      check_sum_[(count_++) % kCheckSumLength] ^= p[i];
-    }
-  }
+  void Update(void const *data, int size);
 
-  void Update(string const &data) {
-    for (int i = 0; i < data.size(); ++i) {
-      check_sum_[(count_++) % kCheckSumLength] ^= data[i];
-    }
-  }
+  void Update(std::string const &data);
 
-  string Digest() { return check_sum_; }
+  std::string Digest() { return check_sum_; }
 
  private:
-  static const int kCheckSumLength = 32;
+  constexpr static int kCheckSumLength = 32;
   int count_;
-  string check_sum_;
+  std::string check_sum_;
 
   CheckSummer(const CheckSummer &) = delete;
   CheckSummer &operator=(const CheckSummer &) = delete;
 };
+
+// Defines make_unique and make_unique_default_init using a standard definition
+// that should be compatible with the C++14 and C++20 (respectively)
+// definitions.
+// TODO(kbg): Remove these once we migrate to C++14 and C++20.
+
+template <typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args &&... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+template <typename T>
+std::unique_ptr<T[]> make_unique(size_t n) {
+  return std::unique_ptr<T>(new typename std::remove_extent<T>::type[n]());
+}
+
+template <typename T>
+std::unique_ptr<T> make_unique_default_init() {
+  return std::unique_ptr<T>(new T);
+}
+
+template <typename T>
+std::unique_ptr<T[]> make_unique_default_init(size_t n) {
+  return std::unique_ptr<T>(new typename std::remove_extent<T>::type[n]);
+}
+
+template <typename T>
+std::unique_ptr<T> WrapUnique(T *ptr) {
+  return std::unique_ptr<T>(ptr);
+}
+
+// Range utilities
+
+// A range adaptor for a pair of iterators.
+//
+// This just wraps two iterators into a range-compatible interface. Nothing
+// fancy at all.
+template <typename IteratorT>
+class iterator_range {
+ public:
+  using iterator = IteratorT;
+  using const_iterator = IteratorT;
+  using value_type = typename std::iterator_traits<IteratorT>::value_type;
+
+  iterator_range() : begin_iterator_(), end_iterator_() {}
+  iterator_range(IteratorT begin_iterator, IteratorT end_iterator)
+      : begin_iterator_(std::move(begin_iterator)),
+        end_iterator_(std::move(end_iterator)) {}
+
+  IteratorT begin() const { return begin_iterator_; }
+  IteratorT end() const { return end_iterator_; }
+
+ private:
+  IteratorT begin_iterator_, end_iterator_;
+};
+
+// Convenience function for iterating over sub-ranges.
+//
+// This provides a bit of syntactic sugar to make using sub-ranges
+// in for loops a bit easier. Analogous to std::make_pair().
+template <typename T>
+iterator_range<T> make_range(T x, T y) {
+  return iterator_range<T>(std::move(x), std::move(y));
+}
+
+// String munging.
+
+std::string StringJoin(const std::vector<std::string> &elements,
+                       const std::string &delim);
+
+std::string StringJoin(const std::vector<std::string> &elements,
+                       const char *delim);
+
+std::string StringJoin(const std::vector<std::string> &elements, char delim);
+
+std::vector<std::string> StringSplit(const std::string &full,
+                                     const std::string &delim);
+
+std::vector<std::string> StringSplit(const std::string &full,
+                                     const char *delim);
+
+std::vector<std::string> StringSplit(const std::string &full, char delim);
+
+void StripTrailingAsciiWhitespace(std::string *full);
+
+std::string StripTrailingAsciiWhitespace(const std::string &full);
 
 }  // namespace fst
 

@@ -1,17 +1,30 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
 // Creates binary FSTs from simple text format used by AT&T.
 
 #include <cstring>
-
-#include <fstream>
 #include <istream>
 #include <memory>
 #include <string>
 
 #include <fst/flags.h>
 #include <fst/log.h>
+#include <fstream>
 #include <fst/script/compile.h>
 
 DECLARE_bool(acceptor);
@@ -30,7 +43,8 @@ int fstcompile_main(int argc, char **argv) {
   using fst::SymbolTable;
   using fst::SymbolTableTextOptions;
 
-  string usage = "Creates binary FSTs from simple text format.\n\n  Usage: ";
+  std::string usage =
+      "Creates binary FSTs from simple text format.\n\n  Usage: ";
   usage += argv[0];
   usage += " [text.fst [binary.fst]]\n";
 
@@ -41,7 +55,7 @@ int fstcompile_main(int argc, char **argv) {
     return 1;
   }
 
-  string source = "standard input";
+  std::string source = "standard input";
   std::ifstream fstrm;
   if (argc > 1 && strcmp(argv[1], "-") != 0) {
     fstrm.open(argv[1]);
@@ -73,12 +87,14 @@ int fstcompile_main(int argc, char **argv) {
     if (!ssyms) return 1;
   }
 
-  const string dest = argc > 2 ? argv[2] : "";
+  const std::string dest = argc > 2 && strcmp(argv[2], "-") != 0 ? argv[2] : "";
 
-  s::CompileFst(istrm, source, dest, FLAGS_fst_type, FLAGS_arc_type,
-                isyms.get(), osyms.get(), ssyms.get(), FLAGS_acceptor,
-                FLAGS_keep_isymbols, FLAGS_keep_osymbols,
-                FLAGS_keep_state_numbering, FLAGS_allow_negative_labels);
+  s::CompileFst(
+      istrm, source, dest, FLAGS_fst_type, FLAGS_arc_type, isyms.get(),
+      osyms.get(), ssyms.get(), FLAGS_acceptor,
+      FLAGS_keep_isymbols, FLAGS_keep_osymbols,
+      FLAGS_keep_state_numbering,
+      FLAGS_allow_negative_labels);
 
   return 0;
 }

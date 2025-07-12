@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -29,8 +43,8 @@ void AccumulateStatesAndArcs(const Fst<Arc> &fst, size_t *nstate, size_t *narc,
 }
 
 struct KeyInfo {
-  string key;
-  string type;
+  std::string key;
+  std::string type;
   size_t nstate = 0;
   size_t narc = 0;
   size_t nfinal = 0;
@@ -38,21 +52,21 @@ struct KeyInfo {
 
 struct FarInfoData {
   std::vector<KeyInfo> key_infos;
-  string far_type;
-  string arc_type;
+  std::string far_type;
+  std::string arc_type;
   size_t nfst = 0;
   size_t nstate = 0;
   size_t narc = 0;
   size_t nfinal = 0;
-  std::set<string> fst_types;
+  std::set<std::string> fst_types;
 };
 
 template <class Arc>
-void GetFarInfo(const std::vector<string> &filenames, const string &begin_key,
-                const string &end_key, const bool list_fsts,
-                FarInfoData *far_info) {
+void GetFarInfo(const std::vector<std::string> &sources,
+                const std::string &begin_key, const std::string &end_key,
+                const bool list_fsts, FarInfoData *far_info) {
   *far_info = FarInfoData();
-  std::unique_ptr<FarReader<Arc>> reader(FarReader<Arc>::Open(filenames));
+  std::unique_ptr<FarReader<Arc>> reader(FarReader<Arc>::Open(sources));
   if (!reader) {
     LOG(ERROR) << "GetFarInfo: failed to create far reader.";
     return;
@@ -84,10 +98,11 @@ void GetFarInfo(const std::vector<string> &filenames, const string &begin_key,
 }
 
 template <class Arc>
-void FarInfo(const std::vector<string> &filenames, const string &begin_key,
-             const string &end_key, const bool list_fsts) {
+void FarInfo(const std::vector<std::string> &sources,
+             const std::string &begin_key, const std::string &end_key,
+             const bool list_fsts) {
   FarInfoData info;
-  GetFarInfo<Arc>(filenames, begin_key, end_key, list_fsts, &info);
+  GetFarInfo<Arc>(sources, begin_key, end_key, list_fsts, &info);
   if (!list_fsts) {
     std::cout << std::left << std::setw(50) << "far type" << info.far_type
               << std::endl;

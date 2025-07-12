@@ -1,10 +1,23 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
 // Two DFAs are equivalent iff their exit status is zero.
 
 #include <cstring>
-
 #include <memory>
 #include <string>
 
@@ -18,7 +31,7 @@ DECLARE_double(delta);
 DECLARE_bool(random);
 DECLARE_int32(max_length);
 DECLARE_int32(npath);
-DECLARE_int32(seed);
+DECLARE_uint64(seed);
 DECLARE_string(select);
 
 int fstequivalent_main(int argc, char **argv) {
@@ -26,7 +39,7 @@ int fstequivalent_main(int argc, char **argv) {
   using fst::RandGenOptions;
   using fst::script::FstClass;
 
-  string usage =
+  std::string usage =
       "Two DFAs are equivalent iff the exit status is zero.\n\n"
       "  Usage: ";
   usage += argv[0];
@@ -39,8 +52,8 @@ int fstequivalent_main(int argc, char **argv) {
     return 1;
   }
 
-  const string in1_name = strcmp(argv[1], "-") == 0 ? "" : argv[1];
-  const string in2_name = strcmp(argv[2], "-") == 0 ? "" : argv[2];
+  const std::string in1_name = strcmp(argv[1], "-") == 0 ? "" : argv[1];
+  const std::string in2_name = strcmp(argv[2], "-") == 0 ? "" : argv[2];
 
   if (in1_name.empty() && in2_name.empty()) {
     LOG(ERROR) << argv[0] << ": Can't take both inputs from standard input";
@@ -61,12 +74,14 @@ int fstequivalent_main(int argc, char **argv) {
     s::RandArcSelection ras;
     if (!s::GetRandArcSelection(FLAGS_select, &ras)) {
       LOG(ERROR) << argv[0] << ": Unknown or unsupported select type "
-                            << FLAGS_select;
+                 << FLAGS_select;
       return 1;
     }
-    const RandGenOptions<s::RandArcSelection> opts(ras, FLAGS_max_length);
-    bool result = s::RandEquivalent(*ifst1, *ifst2, FLAGS_npath, FLAGS_delta,
-                                    FLAGS_seed, opts);
+    const RandGenOptions<s::RandArcSelection> opts(
+        ras, FLAGS_max_length);
+    bool result = s::RandEquivalent(*ifst1, *ifst2, FLAGS_npath,
+                                    opts, FLAGS_delta,
+                                    FLAGS_seed);
     if (!result) VLOG(1) << "FSTs are not equivalent";
     return result ? 0 : 2;
   }

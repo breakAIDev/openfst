@@ -1,13 +1,30 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
 // FST utility definitions.
 
 #include <fst/util.h>
+
 #include <cctype>
 #include <sstream>
 #include <string>
+
 #include <fst/flags.h>
+#include <fst/types.h>
 #include <fst/log.h>
 #include <fst/mapped-file.h>
 
@@ -31,7 +48,7 @@ void SplitString(char *full, const char *delim, std::vector<char *> *vec,
   }
 }
 
-int64 StrToInt64(const string &s, const string &src, size_t nline,
+int64 StrToInt64(const std::string &s, const std::string &source, size_t nline,
                  bool allow_negative, bool *error) {
   int64 n;
   const char *cs = s.c_str();
@@ -39,7 +56,7 @@ int64 StrToInt64(const string &s, const string &src, size_t nline,
   if (error) *error = false;
   n = strtoll(cs, &p, 10);
   if (p < cs + s.size() || (!allow_negative && n < 0)) {
-    FSTERROR() << "StrToInt64: Bad integer = " << s << "\", source = " << src
+    FSTERROR() << "StrToInt64: Bad integer = " << s << "\", source = " << source
                << ", line = " << nline;
     if (error) *error = true;
     return 0;
@@ -47,7 +64,7 @@ int64 StrToInt64(const string &s, const string &src, size_t nline,
   return n;
 }
 
-void ConvertToLegalCSymbol(string *s) {
+void ConvertToLegalCSymbol(std::string *s) {
   for (auto it = s->begin(); it != s->end(); ++it) {
     if (!isalnum(*it)) {
       *it = '_';
@@ -89,7 +106,7 @@ bool AlignOutput(std::ostream &strm) {
 int AlignBufferWithOutputStream(std::ostream &strm,
                                 std::ostringstream &buffer) {
   const auto strm_pos = strm.tellp();
-  if (strm_pos == std::ostream::pos_type(-1)) {
+  if (strm_pos == -1) {
     LOG(ERROR) << "Cannot determine stream position";
     return -1;
   }

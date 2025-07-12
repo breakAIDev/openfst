@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -11,7 +25,6 @@
 #include <map>
 #include <string>
 
-#include <fst/types.h>
 #include <fst/log.h>
 
 // Generic class representing a globally-stored correspondence between
@@ -44,7 +57,7 @@ class GenericRegister {
 
   void SetEntry(const KeyType &key, const EntryType &entry) {
     MutexLock l(&register_lock_);
-    register_table_.insert(std::make_pair(key, entry));
+    register_table_.emplace(key, entry);
   }
 
   EntryType GetEntry(const KeyType &key) const {
@@ -88,7 +101,7 @@ class GenericRegister {
   }
 
   // Override this to define how to turn a key into an SO filename.
-  virtual string ConvertKeyToSoFilename(const KeyType &key) const = 0;
+  virtual std::string ConvertKeyToSoFilename(const KeyType &key) const = 0;
 
   virtual const EntryType *LookupEntry(const KeyType &key) const {
     MutexLock l(&register_lock_);

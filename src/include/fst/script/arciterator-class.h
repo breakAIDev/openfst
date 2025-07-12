@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 
@@ -7,6 +21,7 @@
 #include <memory>
 #include <utility>
 
+#include <fst/types.h>
 #include <fst/fstlib.h>
 #include <fst/script/fst-class.h>
 
@@ -24,12 +39,12 @@ namespace script {
 class ArcIteratorImplBase {
  public:
   virtual bool Done() const = 0;
-  virtual uint32 Flags() const = 0;
+  virtual uint8 Flags() const = 0;
   virtual void Next() = 0;
   virtual size_t Position() const = 0;
   virtual void Reset() = 0;
   virtual void Seek(size_t a) = 0;
-  virtual void SetFlags(uint32 flags, uint32 mask) = 0;
+  virtual void SetFlags(uint8 flags, uint8 mask) = 0;
   virtual ArcClass Value() const = 0;
   virtual ~ArcIteratorImplBase() {}
 };
@@ -43,7 +58,7 @@ class ArcIteratorClassImpl : public ArcIteratorImplBase {
 
   bool Done() const final { return aiter_.Done(); }
 
-  uint32 Flags() const final { return aiter_.Flags(); }
+  uint8 Flags() const final { return aiter_.Flags(); }
 
   void Next() final { aiter_.Next(); }
 
@@ -53,9 +68,7 @@ class ArcIteratorClassImpl : public ArcIteratorImplBase {
 
   void Seek(size_t a) final { aiter_.Seek(a); }
 
-  void SetFlags(uint32 flags, uint32 mask) final {
-    aiter_.SetFlags(flags, mask);
-  }
+  void SetFlags(uint8 flags, uint8 mask) final { aiter_.SetFlags(flags, mask); }
 
   // This is returned by value because it has not yet been constructed, and
   // is likely to participate in return-value optimization.
@@ -83,7 +96,7 @@ class ArcIteratorClass {
 
   bool Done() const { return impl_->Done(); }
 
-  uint32 Flags() const { return impl_->Flags(); }
+  uint8 Flags() const { return impl_->Flags(); }
 
   void Next() { impl_->Next(); }
 
@@ -93,7 +106,7 @@ class ArcIteratorClass {
 
   void Seek(size_t a) { impl_->Seek(a); }
 
-  void SetFlags(uint32 flags, uint32 mask) { impl_->SetFlags(flags, mask); }
+  void SetFlags(uint8 flags, uint8 mask) { impl_->SetFlags(flags, mask); }
 
   ArcClass Value() const { return impl_->Value(); }
 
@@ -106,7 +119,7 @@ class ArcIteratorClass {
 
 template <class Arc>
 void InitArcIteratorClass(InitArcIteratorClassArgs *args) {
-  const Fst<Arc> &fst = *(std::get<0>(*args).GetFst<Arc>());
+  const Fst<Arc> &fst = *std::get<0>(*args).GetFst<Arc>();
   std::get<2>(*args)->impl_.reset(
       new ArcIteratorClassImpl<Arc>(fst, std::get<1>(*args)));
 }
@@ -123,15 +136,14 @@ class MutableArcIteratorImplBase : public ArcIteratorImplBase {
 
 // Templated implementation.
 template <class Arc>
-class MutableArcIteratorClassImpl
-    : public MutableArcIteratorImplBase {
+class MutableArcIteratorClassImpl : public MutableArcIteratorImplBase {
  public:
   explicit MutableArcIteratorClassImpl(MutableFst<Arc> *fst, int64 s)
       : aiter_(fst, s) {}
 
   bool Done() const final { return aiter_.Done(); }
 
-  uint32 Flags() const final { return aiter_.Flags(); }
+  uint8 Flags() const final { return aiter_.Flags(); }
 
   void Next() final { aiter_.Next(); }
 
@@ -141,13 +153,9 @@ class MutableArcIteratorClassImpl
 
   void Seek(size_t a) final { aiter_.Seek(a); }
 
-  void SetFlags(uint32 flags, uint32 mask) final {
-    aiter_.SetFlags(flags, mask);
-  }
+  void SetFlags(uint8 flags, uint8 mask) final { aiter_.SetFlags(flags, mask); }
 
-  void SetValue(const Arc &arc) { aiter_.SetValue(arc); }
-
-  void SetValue(const ArcClass &ac) final { aiter_.SetValue(ac.GetArc<Arc>()); }
+  void SetValue(const ArcClass &ac) final { SetValue(ac.GetArc<Arc>()); }
 
   // This is returned by value because it has not yet been constructed, and
   // is likely to participate in return-value optimization.
@@ -156,6 +164,8 @@ class MutableArcIteratorClassImpl
   ~MutableArcIteratorClassImpl() override {}
 
  private:
+  void SetValue(const Arc &arc) { aiter_.SetValue(arc); }
+
   MutableArcIterator<MutableFst<Arc>> aiter_;
 };
 
@@ -175,7 +185,7 @@ class MutableArcIteratorClass {
 
   bool Done() const { return impl_->Done(); }
 
-  uint32 Flags() const { return impl_->Flags(); }
+  uint8 Flags() const { return impl_->Flags(); }
 
   void Next() { impl_->Next(); }
 
@@ -185,7 +195,7 @@ class MutableArcIteratorClass {
 
   void Seek(size_t a) { impl_->Seek(a); }
 
-  void SetFlags(uint32 flags, uint32 mask) { impl_->SetFlags(flags, mask); }
+  void SetFlags(uint8 flags, uint8 mask) { impl_->SetFlags(flags, mask); }
 
   void SetValue(const ArcClass &ac) { impl_->SetValue(ac); }
 

@@ -1,10 +1,23 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
 // Generates random paths through an FST.
 
 #include <cstring>
-
 #include <memory>
 #include <string>
 
@@ -15,17 +28,18 @@
 
 DECLARE_int32(max_length);
 DECLARE_int32(npath);
-DECLARE_int32(seed);
+DECLARE_uint64(seed);
 DECLARE_string(select);
 DECLARE_bool(weighted);
 DECLARE_bool(remove_total_weight);
 
 int fstrandgen_main(int argc, char **argv) {
   namespace s = fst::script;
+  using fst::RandGenOptions;
   using fst::script::FstClass;
   using fst::script::VectorFstClass;
 
-  string usage = "Generates random paths through an FST.\n\n  Usage: ";
+  std::string usage = "Generates random paths through an FST.\n\n  Usage: ";
   usage += argv[0];
   usage += " [in.fst [out.fst]]\n";
 
@@ -38,8 +52,10 @@ int fstrandgen_main(int argc, char **argv) {
 
   VLOG(1) << argv[0] << ": Seed = " << FLAGS_seed;
 
-  const string in_name = (argc > 1 && strcmp(argv[1], "-") != 0) ? argv[1] : "";
-  const string out_name = argc > 2 ? argv[2] : "";
+  const std::string in_name =
+      (argc > 1 && strcmp(argv[1], "-") != 0) ? argv[1] : "";
+  const std::string out_name =
+      (argc > 2 && strcmp(argv[2], "-") != 0) ? argv[2] : "";
 
   std::unique_ptr<FstClass> ifst(FstClass::Read(in_name));
   if (!ifst) return 1;
@@ -53,10 +69,12 @@ int fstrandgen_main(int argc, char **argv) {
     return 1;
   }
 
-  s::RandGen(*ifst, &ofst, FLAGS_seed,
-             fst::RandGenOptions<s::RandArcSelection>(
-                 ras, FLAGS_max_length, FLAGS_npath, FLAGS_weighted,
-                 FLAGS_remove_total_weight));
+  s::RandGen(*ifst, &ofst,
+             RandGenOptions<s::RandArcSelection>(
+                 ras, FLAGS_max_length,
+                 FLAGS_npath, FLAGS_weighted,
+                 FLAGS_remove_total_weight),
+             FLAGS_seed);
 
   return !ofst.Write(out_name);
 }

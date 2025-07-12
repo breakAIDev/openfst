@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -28,9 +42,10 @@ class FstDrawer {
 
   FstDrawer(const Fst<Arc> &fst, const SymbolTable *isyms,
             const SymbolTable *osyms, const SymbolTable *ssyms, bool accep,
-            const string &title, float width, float height, bool portrait,
+            const std::string &title, float width, float height, bool portrait,
             bool vertical, float ranksep, float nodesep, int fontsize,
-            int precision, const string &float_format, bool show_weight_one)
+            int precision, const std::string &float_format,
+            bool show_weight_one)
       : fst_(fst),
         isyms_(isyms),
         osyms_(osyms),
@@ -50,11 +65,11 @@ class FstDrawer {
         show_weight_one_(show_weight_one) {}
 
   // Draws FST to an output buffer.
-  void Draw(std::ostream *strm, const string &dest) {
-    ostrm_ = strm;
+  void Draw(std::ostream &strm, const std::string &dest) {
+    ostrm_ = &strm;
     SetStreamState(ostrm_);
     dest_ = dest;
-    StateId start = fst_.Start();
+    const auto start = fst_.Start();
     if (start == kNoStateId) return;
     PrintString("digraph FST {\n");
     if (vertical_) {
@@ -67,7 +82,7 @@ class FstDrawer {
     PrintString(",");
     Print(height_);
     PrintString("\";\n");
-    if (!dest_.empty()) PrintString("label = \"" + title_ + "\";\n");
+    if (!title_.empty()) PrintString("label = \"" + title_ + "\";\n");
     PrintString("center = 1;\n");
     if (portrait_) {
       PrintString("orientation = Portrait;\n");
@@ -90,21 +105,21 @@ class FstDrawer {
   }
 
  private:
-  void SetStreamState(std::ostream* strm) const {
+  void SetStreamState(std::ostream *strm) const {
     strm->precision(precision_);
     if (float_format_ == "e")
-        strm->setf(std::ios_base::scientific, std::ios_base::floatfield);
+      strm->setf(std::ios_base::scientific, std::ios_base::floatfield);
     if (float_format_ == "f")
-        strm->setf(std::ios_base::fixed, std::ios_base::floatfield);
+      strm->setf(std::ios_base::fixed, std::ios_base::floatfield);
     // O.w. defaults to "g" per standard lib.
   }
 
-  void PrintString(const string &str) const { *ostrm_ << str; }
+  void PrintString(const std::string &str) const { *ostrm_ << str; }
 
-  // Escapes backslash and double quote if these occur in the string. Dot will
-  // not deal gracefully with these if they are not escaped.
-  static string Escape(const string &str) {
-    string ns;
+  // Escapes backslash and double quote if these occur in the string. Dot
+  // will not deal gracefully with these if they are not escaped.
+  static std::string Escape(const std::string &str) {
+    std::string ns;
     for (char c : str) {
       if (c == '\\' || c == '"') ns.push_back('\\');
       ns.push_back(c);
@@ -144,10 +159,12 @@ class FstDrawer {
   }
 
   template <class T>
-  void Print(T t) const { *ostrm_ << t; }
+  void Print(T t) const {
+    *ostrm_ << t;
+  }
 
   template <class T>
-  string ToString(T t) const {
+  std::string ToString(T t) const {
     std::stringstream ss;
     SetStreamState(&ss);
     ss << t;
@@ -204,9 +221,9 @@ class FstDrawer {
   const SymbolTable *ssyms_;  // slabel symbol table.
   bool accep_;                // Print as acceptor when possible.
   std::ostream *ostrm_;       // Drawn FST destination.
-  string dest_;               // Drawn FST destination name.
+  std::string dest_;          // Drawn FST destination name.
 
-  string title_;
+  std::string title_;
   float width_;
   float height_;
   bool portrait_;
@@ -215,7 +232,7 @@ class FstDrawer {
   float nodesep_;
   int fontsize_;
   int precision_;
-  string float_format_;
+  std::string float_format_;
   bool show_weight_one_;
 
   FstDrawer(const FstDrawer &) = delete;

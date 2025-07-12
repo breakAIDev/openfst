@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -9,14 +23,16 @@
 #include <algorithm>
 #include <deque>
 #include <unordered_map>
-#include <utility>
 #include <vector>
+
+#include <fst/types.h>
 #include <fst/log.h>
 
 #include <fst/encode.h>
 #include <fst/push.h>
 #include <fst/union-find.h>
 #include <fst/vector-fst.h>
+#include <unordered_map>
 
 
 namespace fst {
@@ -174,7 +190,7 @@ bool Equivalent(const Fst<Arc> &fst1, const Fst<Arc> &fst2,
   // Main loop: explores the two acceptors in a breadth-first manner, updating
   // the equivalence relation on the statesets. Loop invariant: each block of
   // the states contains either final states only or non-final states only.
-  for (q.push_back(std::make_pair(s1, s2)); ret && !q.empty(); q.pop_front()) {
+  for (q.emplace_back(s1, s2); ret && !q.empty(); q.pop_front()) {
     s1 = q.front().first;
     s2 = q.front().second;
     // Representatives of the equivalence classes of s1/s2.

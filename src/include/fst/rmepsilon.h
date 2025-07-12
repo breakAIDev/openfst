@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -13,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include <fst/types.h>
 #include <fst/log.h>
 
 #include <fst/arcfilter.h>
@@ -29,9 +44,8 @@
 namespace fst {
 
 template <class Arc, class Queue>
-class RmEpsilonOptions
+struct RmEpsilonOptions
     : public ShortestDistanceOptions<Arc, Queue, EpsilonArcFilter<Arc>> {
- public:
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
 
@@ -71,7 +85,7 @@ class RmEpsilonState {
 
   std::vector<Arc> &Arcs() { return arcs_; }
 
-  const Weight &Final() const { return final_; }
+  const Weight &Final() const { return final_weight_; }
 
   bool Error() const { return sd_state_.Error(); }
 
@@ -123,8 +137,8 @@ class RmEpsilonState {
   std::vector<bool> visited_;      // True if the state has been visited.
   std::forward_list<StateId> visited_states_;  // List of visited states.
   std::vector<Arc> arcs_;                      // Arcs of state being expanded.
-  Weight final_;       // Final weight of state being expanded.
-  StateId expand_id_;  // Unique ID for each call to Expand
+  Weight final_weight_;  // Final weight of state being expanded.
+  StateId expand_id_;    // Unique ID for each call to Expand
 
   RmEpsilonState(const RmEpsilonState &) = delete;
   RmEpsilonState &operator=(const RmEpsilonState &) = delete;
@@ -132,7 +146,7 @@ class RmEpsilonState {
 
 template <class Arc, class Queue>
 void RmEpsilonState<Arc, Queue>::Expand(typename Arc::StateId source) {
-  final_ = Weight::Zero();
+  final_weight_ = Weight::Zero();
   arcs_.clear();
   sd_state_.ShortestDistance(source);
   if (sd_state_.Error()) return;
@@ -140,7 +154,9 @@ void RmEpsilonState<Arc, Queue>::Expand(typename Arc::StateId source) {
   while (!eps_queue_.empty()) {
     const auto state = eps_queue_.top();
     eps_queue_.pop();
-    while (visited_.size() <= state) visited_.push_back(false);
+    if (static_cast<decltype(state)>(visited_.size()) <= state) {
+      visited_.resize(state + 1, false);
+    }
     if (visited_[state]) continue;
     visited_[state] = true;
     visited_states_.push_front(state);
@@ -149,12 +165,15 @@ void RmEpsilonState<Arc, Queue>::Expand(typename Arc::StateId source) {
       auto arc = aiter.Value();
       arc.weight = Times((*distance_)[state], arc.weight);
       if (eps_filter_(arc)) {
-        while (visited_.size() <= arc.nextstate) visited_.push_back(false);
+        if (static_cast<decltype(arc.nextstate)>(visited_.size()) <=
+            arc.nextstate) {
+          visited_.resize(arc.nextstate + 1, false);
+        }
         if (!visited_[arc.nextstate]) eps_queue_.push(arc.nextstate);
       } else {
         const Element element(arc.ilabel, arc.olabel, arc.nextstate);
-        auto insert_result = element_map_.insert(
-            std::make_pair(element, std::make_pair(expand_id_, arcs_.size())));
+        auto insert_result = element_map_.emplace(
+            element, std::make_pair(expand_id_, arcs_.size()));
         if (insert_result.second) {
           arcs_.push_back(std::move(arc));
         } else {
@@ -169,7 +188,8 @@ void RmEpsilonState<Arc, Queue>::Expand(typename Arc::StateId source) {
         }
       }
     }
-    final_ = Plus(final_, Times((*distance_)[state], fst_.Final(state)));
+    final_weight_ =
+        Plus(final_weight_, Times((*distance_)[state], fst_.Final(state)));
   }
   while (!visited_states_.empty()) {
     visited_[visited_states_.front()] = false;
@@ -491,12 +511,12 @@ class RmEpsilonFst : public ImplToFst<internal::RmEpsilonFstImpl<A>> {
       : ImplToFst<Impl>(std::make_shared<Impl>(fst, opts)) {}
 
   // See Fst<>::Copy() for doc.
-  RmEpsilonFst(const RmEpsilonFst<Arc> &fst, bool safe = false)
+  RmEpsilonFst(const RmEpsilonFst &fst, bool safe = false)
       : ImplToFst<Impl>(fst, safe) {}
 
   // Get a copy of this RmEpsilonFst. See Fst<>::Copy() for further doc.
-  RmEpsilonFst<Arc> *Copy(bool safe = false) const override {
-    return new RmEpsilonFst<Arc>(*this, safe);
+  RmEpsilonFst *Copy(bool safe = false) const override {
+    return new RmEpsilonFst(*this, safe);
   }
 
   inline void InitStateIterator(StateIteratorData<Arc> *data) const override;
@@ -537,7 +557,7 @@ class ArcIterator<RmEpsilonFst<Arc>>
 template <class Arc>
 inline void RmEpsilonFst<Arc>::InitStateIterator(
     StateIteratorData<Arc> *data) const {
-  data->base = new StateIterator<RmEpsilonFst<Arc>>(*this);
+  data->base = fst::make_unique<StateIterator<RmEpsilonFst<Arc>>>(*this);
 }
 
 // Useful alias when using StdArc.

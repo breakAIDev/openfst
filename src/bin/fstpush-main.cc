@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -5,11 +19,11 @@
 // states.
 
 #include <cstring>
-
 #include <memory>
 #include <string>
 
 #include <fst/flags.h>
+#include <fst/types.h>
 #include <fst/script/getters.h>
 #include <fst/script/push.h>
 
@@ -25,7 +39,7 @@ int fstpush_main(int argc, char **argv) {
   using fst::script::FstClass;
   using fst::script::VectorFstClass;
 
-  string usage = "Pushes weights and/or olabels in an FST.\n\n  Usage: ";
+  std::string usage = "Pushes weights and/or olabels in an FST.\n\n  Usage: ";
   usage += argv[0];
   usage += " [in.fst [out.fst]]\n";
 
@@ -36,19 +50,23 @@ int fstpush_main(int argc, char **argv) {
     return 1;
   }
 
-  string in_name = (argc > 1 && strcmp(argv[1], "-") != 0) ? argv[1] : "";
-  string out_name = argc > 2 ? argv[2] : "";
+  const std::string in_name =
+      (argc > 1 && strcmp(argv[1], "-") != 0) ? argv[1] : "";
+  const std::string out_name =
+      (argc > 2 && strcmp(argv[2], "-") != 0) ? argv[2] : "";
 
   std::unique_ptr<FstClass> ifst(FstClass::Read(in_name));
   if (!ifst) return 1;
 
-  const auto flags =
-      s::GetPushFlags(FLAGS_push_weights, FLAGS_push_labels,
-                      FLAGS_remove_total_weight, FLAGS_remove_common_affix);
+  const auto flags = s::GetPushFlags(FLAGS_push_weights,
+                                     FLAGS_push_labels,
+                                     FLAGS_remove_total_weight,
+                                     FLAGS_remove_common_affix);
 
   VectorFstClass ofst(ifst->ArcType());
 
-  s::Push(*ifst, &ofst, flags, s::GetReweightType(FLAGS_to_final),
+  s::Push(*ifst, &ofst, flags,
+          s::GetReweightType(FLAGS_to_final),
           FLAGS_delta);
 
   return !ofst.Write(out_name);

@@ -1,10 +1,23 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
 // Minimizes a deterministic FST.
 
 #include <cstring>
-
 #include <memory>
 #include <string>
 
@@ -20,7 +33,7 @@ int fstminimize_main(int argc, char **argv) {
   using fst::script::MutableFstClass;
   using fst::script::VectorFstClass;
 
-  string usage = "Minimizes a deterministic FST.\n\n  Usage: ";
+  std::string usage = "Minimizes a deterministic FST.\n\n  Usage: ";
   usage += argv[0];
   usage += " [in.fst [out1.fst [out2.fst]]]\n";
 
@@ -31,10 +44,11 @@ int fstminimize_main(int argc, char **argv) {
     return 1;
   }
 
-  const string in_name = (argc > 1 && strcmp(argv[1], "-") != 0) ? argv[1] : "";
-  const string out1_name =
+  const std::string in_name =
+      (argc > 1 && strcmp(argv[1], "-") != 0) ? argv[1] : "";
+  const std::string out1_name =
       (argc > 2 && strcmp(argv[2], "-") != 0) ? argv[2] : "";
-  const string out2_name =
+  const std::string out2_name =
       (argc > 3 && strcmp(argv[3], "-") != 0) ? argv[3] : "";
 
   if (out1_name.empty() && out2_name.empty() && argc > 3) {
@@ -47,10 +61,12 @@ int fstminimize_main(int argc, char **argv) {
 
   if (argc > 3) {
     std::unique_ptr<MutableFstClass> fst2(new VectorFstClass(fst1->ArcType()));
-    s::Minimize(fst1.get(), fst2.get(), FLAGS_delta, FLAGS_allow_nondet);
+    s::Minimize(fst1.get(), fst2.get(), FLAGS_delta,
+                FLAGS_allow_nondet);
     if (!fst2->Write(out2_name)) return 1;
   } else {
-    s::Minimize(fst1.get(), nullptr, FLAGS_delta, FLAGS_allow_nondet);
+    s::Minimize(fst1.get(), nullptr, FLAGS_delta,
+                FLAGS_allow_nondet);
   }
 
   return !fst1->Write(out1_name);

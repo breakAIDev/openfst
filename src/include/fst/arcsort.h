@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -9,6 +23,8 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+
+#include <fst/types.h>
 
 #include <fst/cache.h>
 #include <fst/state-map.h>
@@ -124,11 +140,11 @@ class ArcSortFst : public StateMapFst<Arc, Arc, ArcSortMapper<Arc, Compare>> {
       : StateMapFst<Arc, Arc, Mapper>(fst, Mapper(fst, comp), opts) {}
 
   // See Fst<>::Copy() for doc.
-  ArcSortFst(const ArcSortFst<Arc, Compare> &fst, bool safe = false)
+  ArcSortFst(const ArcSortFst &fst, bool safe = false)
       : StateMapFst<Arc, Arc, Mapper>(fst, safe) {}
 
   // Gets a copy of this ArcSortFst. See Fst<>::Copy() for further doc.
-  ArcSortFst<Arc, Compare> *Copy(bool safe = false) const override {
+  ArcSortFst *Copy(bool safe = false) const override {
     return new ArcSortFst(*this, safe);
   }
 
@@ -171,8 +187,9 @@ class ILabelCompare {
  public:
   constexpr ILabelCompare() {}
 
-  constexpr bool operator()(const Arc &arc1, const Arc &arc2) const {
-    return arc1.ilabel < arc2.ilabel;
+  constexpr bool operator()(const Arc &lhs, const Arc &rhs) const {
+    return std::forward_as_tuple(lhs.ilabel, lhs.olabel) <
+           std::forward_as_tuple(rhs.ilabel, rhs.olabel);
   }
 
   constexpr uint64 Properties(uint64 props) const {
@@ -187,8 +204,9 @@ class OLabelCompare {
  public:
   constexpr OLabelCompare() {}
 
-  constexpr bool operator()(const Arc &arc1, const Arc &arc2) const {
-    return arc1.olabel < arc2.olabel;
+  constexpr bool operator()(const Arc &lhs, const Arc &rhs) const {
+    return std::forward_as_tuple(lhs.olabel, lhs.ilabel) <
+           std::forward_as_tuple(rhs.olabel, rhs.ilabel);
   }
 
   constexpr uint64 Properties(uint64 props) const {

@@ -1,3 +1,17 @@
+// Copyright 2005-2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the 'License');
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an 'AS IS' BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // See www.openfst.org for extensive documentation on this weighted
 // finite-state transducer library.
 //
@@ -150,7 +164,7 @@ class FirstPathSelect<S, W, NaturalAStarQueue<S, W, Estimate>> {
   using Queue = NaturalAStarQueue<S, W, Estimate>;
 
   FirstPathSelect(const Queue &state_queue)
-    : estimate_(state_queue.GetCompare().GetEstimate()) {}
+      : estimate_(state_queue.GetCompare().GetEstimate()) {}
 
   bool operator()(S s, W d, W f) const {
     return f == Plus(Times(d, estimate_(s)), f);
@@ -345,7 +359,7 @@ void NShortestPath(const Fst<RevArc> &ifst, MutableFst<Arc> *ofst,
   // (s, w). The vector pairs maps each state in ofst to the corresponding
   // pair maps states in ofst to the corresponding pair (s, w).
   std::vector<Pair> pairs;
-  // The supefinal state is denoted by kNoStateId. The distance from the
+  // The superfinal state is denoted by kNoStateId. The distance from the
   // superfinal state to the final state is semiring One, so
   // `distance[kNoStateId]` is not needed.
   const ShortestPathCompare<StateId, Weight> compare(pairs, distance,
@@ -359,9 +373,9 @@ void NShortestPath(const Fst<RevArc> &ifst, MutableFst<Arc> *ofst,
   }
   ofst->SetStart(ofst->AddState());
   const auto final_state = ofst->AddState();
-  ofst->SetFinal(final_state, Weight::One());
+  ofst->SetFinal(final_state);
   while (pairs.size() <= final_state) {
-    pairs.push_back(std::make_pair(kNoStateId, Weight::Zero()));
+    pairs.emplace_back(kNoStateId, Weight::Zero());
   }
   pairs[final_state] = std::make_pair(ifst.Start(), Weight::One());
   std::vector<StateId> heap;
@@ -387,9 +401,7 @@ void NShortestPath(const Fst<RevArc> &ifst, MutableFst<Arc> *ofst,
     }
     while (r.size() <= p.first + 1) r.push_back(0);
     ++r[p.first + 1];
-    if (p.first == kNoStateId) {
-      ofst->AddArc(ofst->Start(), Arc(0, 0, Weight::One(), state));
-    }
+    if (p.first == kNoStateId) ofst->AddArc(ofst->Start(), Arc(0, 0, state));
     if ((p.first == kNoStateId) && (r[p.first + 1] == nshortest)) break;
     if (r[p.first + 1] > nshortest) continue;
     if (p.first == kNoStateId) continue;
@@ -399,7 +411,7 @@ void NShortestPath(const Fst<RevArc> &ifst, MutableFst<Arc> *ofst,
       Arc arc(rarc.ilabel, rarc.olabel, rarc.weight.Reverse(), rarc.nextstate);
       const auto weight = Times(p.second, arc.weight);
       const auto next = ofst->AddState();
-      pairs.push_back(std::make_pair(arc.nextstate, weight));
+      pairs.emplace_back(arc.nextstate, weight);
       arc.nextstate = state;
       ofst->AddArc(next, std::move(arc));
       heap.push_back(next);
@@ -409,7 +421,7 @@ void NShortestPath(const Fst<RevArc> &ifst, MutableFst<Arc> *ofst,
     if (final_weight != Weight::Zero()) {
       const auto weight = Times(p.second, final_weight);
       const auto next = ofst->AddState();
-      pairs.push_back(std::make_pair(kNoStateId, weight));
+      pairs.emplace_back(kNoStateId, weight);
       ofst->AddArc(next, Arc(0, 0, final_weight, state));
       heap.push_back(next);
       std::push_heap(heap.begin(), heap.end(), compare);
@@ -498,8 +510,8 @@ void ShortestPath(const Fst<Arc> &ifst, MutableFst<Arc> *ofst,
                             opts.weight_threshold, opts.state_threshold);
   } else {
     std::vector<Weight> ddistance;
-    DeterminizeFstOptions<RevArc> dopts(opts.delta);
-    DeterminizeFst<RevArc> dfst(rfst, distance, &ddistance, dopts);
+    const DeterminizeFstOptions<RevArc> dopts(opts.delta);
+    const DeterminizeFst<RevArc> dfst(rfst, distance, &ddistance, dopts);
     internal::NShortestPath(dfst, ofst, ddistance, opts.nshortest, opts.delta,
                             opts.weight_threshold, opts.state_threshold);
   }
